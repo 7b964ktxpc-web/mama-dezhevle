@@ -1,7 +1,13 @@
-name: Telegram test publish
+name: telegram-test
 
 on:
   workflow_dispatch:
+    inputs:
+      limit:
+        description: "Maximum number of deal posts"
+        required: true
+        default: "1"
+        type: string
 
 permissions:
   contents: read
@@ -9,31 +15,20 @@ permissions:
 jobs:
   publish-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - name: Send test message to Telegram
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+      - run: npm install --no-package-lock
+      - run: npm run typecheck
+      - name: Publish controlled deal
         env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
-        run: |
-          set -euo pipefail
-          test -n "$TELEGRAM_BOT_TOKEN"
-          test -n "$TELEGRAM_CHANNEL_ID"
-
-          payload=$(python - <<'PY'
-          import json, os
-          print(json.dumps({
-              "chat_id": os.environ["TELEGRAM_CHANNEL_ID"],
-              "text": "🤖 *Мама, дешевле!* — система на связи\n\nПервый автоматический тест публикации прошёл успешно 🚀\n\nСледующий этап — автоматический поиск выгодных товаров.",
-              "parse_mode": "Markdown",
-              "disable_web_page_preview": True,
-          }))
-          PY
-          )
-
-          response=$(curl --fail-with-body --silent --show-error \
-            --request POST \
-            --header 'Content-Type: application/json' \
-            --data "$payload" \
-            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage")
-
-          echo "$response" | python -c 'import json,sys; data=json.load(sys.stdin); assert data.get("ok") is True, data; print("Telegram API: OK")'
+          PREVIEW_ONLY: "false"
+        run: npm run publish
