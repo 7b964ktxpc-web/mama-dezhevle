@@ -4,17 +4,25 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "*/5 * * * *"
+      timezone: "Europe/Moscow"
+
+concurrency:
+  group: mama-dezhevle-telegram-bot
+  cancel-in-progress: false
 
 jobs:
   bot:
     runs-on: ubuntu-latest
+    timeout-minutes: 4
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22.x
+          cache: npm
       - run: npm install --no-package-lock
+      - run: npm run typecheck
       - run: npm run bot
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
