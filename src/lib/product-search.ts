@@ -33,7 +33,7 @@ export function parseSearchQuery(query: string): SearchFilters {
   return { terms: [...new Set(terms)], maxPrice, age, size, gender };
 }
 
-function scoreProduct(text: string, filters: SearchFilters, price: number, rating?: number | null, oldPrice?: number | null) {
+function scoreProduct(text: string, filters: SearchFilters, rating?: number | null, oldPrice?: number | null) {
   const normalizedText = text.toLowerCase().replace(/ё/g, "е");
   let score = 0;
   for (const term of filters.terms) if (normalizedText.includes(term)) score += 10;
@@ -47,7 +47,7 @@ function scoreProduct(text: string, filters: SearchFilters, price: number, ratin
   }
   if (filters.size !== undefined && new RegExp(`(?:^|\\D)${filters.size}(?:\\D|$)`).test(normalizedText)) score += 12;
   if (rating) score += Math.min(Number(rating), 5) * 2;
-  if (oldPrice && oldPrice > price) score += Math.min(((oldPrice - price) / oldPrice) * 20, 20);
+  if (oldPrice && oldPrice > 0) score += Math.min((oldPrice / (oldPrice + 1000)) * 2, 2);
   return score;
 }
 
@@ -96,7 +96,7 @@ export async function searchProducts(query: string, limit = 5) {
           url: product.url,
           imageUrl: product.image_url,
         },
-        score: scoreProduct(searchableText, filters, price, product.rating, latest.old_price),
+        score: scoreProduct(searchableText, filters, product.rating, latest.old_price),
       };
     })
     .filter((value): value is NonNullable<typeof value> => value !== null);
