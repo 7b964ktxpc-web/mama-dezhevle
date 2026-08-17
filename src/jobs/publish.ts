@@ -60,7 +60,10 @@ async function main() {
     }
 
     const telegram = await sendTelegramPost(text);
-    const messageId = telegram?.result?.message_id ?? null;
+    if (!telegram?.ok || !telegram?.result?.message_id) {
+      throw new Error(`Telegram publish failed for deal ${deal.id}`);
+    }
+    const messageId = telegram.result.message_id;
     const { error: insertError } = await supabase.from("telegram_posts").insert({
       deal_id: deal.id,
       telegram_message_id: messageId,
@@ -73,7 +76,7 @@ async function main() {
       .update({ status: "published", published_at: new Date().toISOString() })
       .eq("id", deal.id);
     if (updateError) throw updateError;
-    console.log(`Published deal ${deal.id}`);
+    console.log(`Published deal ${deal.id} as Telegram message ${messageId}`);
   }
 
   console.log(JSON.stringify({ prepared, skippedPublished, skippedNotImproved, previewOnly }));
