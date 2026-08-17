@@ -11,6 +11,7 @@
     "typecheck": "tsx scripts/check-types.ts",
     "collect": "tsx src/jobs/collect.ts",
     "evaluate": "tsx src/jobs/evaluate.ts",
+    "preview": "tsx src/jobs/preview.ts",
     "publish": "tsx src/jobs/publish.ts",
     "bot": "tsx src/jobs/bot.ts",
     "test:feed": "tsx src/jobs/test-feed.ts",
