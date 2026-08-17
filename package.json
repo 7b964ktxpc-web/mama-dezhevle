@@ -1,0 +1,28 @@
+{
+  "name": "mama-dezhevle",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Мама, дешевле! — автоматический AI-поиск выгодных детских товаров для Telegram.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "collect": "tsx src/jobs/collect.ts",
+    "evaluate": "tsx src/jobs/evaluate.ts",
+    "publish": "tsx src/jobs/publish.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "latest",
+    "next": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "tsx": "latest",
+    "typescript": "latest",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest"
+  }
+}
