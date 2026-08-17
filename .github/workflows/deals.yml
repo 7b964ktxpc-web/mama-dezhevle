@@ -13,7 +13,8 @@ on:
 
 env:
   PREVIEW_ONLY: ${{ github.event_name == 'schedule' && 'true' || inputs.preview_only }}
-\ njobs:
+
+jobs:
   collect:
     runs-on: ubuntu-latest
     steps:
@@ -29,7 +30,6 @@ env:
         env:
           CATALOG_YML_URL: ${{ secrets.CATALOG_YML_URL }}
           CATALOG_YML_URLS: ${{ secrets.CATALOG_YML_URLS }}
-          DETMIR_PUBLIC_ENABLED: "true"
         run: |
           echo "Detmir public catalog source is enabled"
           if [ -n "$CATALOG_YML_URL" ] || [ -n "$CATALOG_YML_URLS" ]; then
