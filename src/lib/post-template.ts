@@ -8,6 +8,7 @@ type ProductForPost = {
   reviewsCount?: number | null;
   ageLabel?: string | null;
   url: string;
+  source?: string | null;
 };
 
 const rubles = new Intl.NumberFormat("ru-RU");
@@ -17,6 +18,7 @@ export function buildDealPost(product: ProductForPost, deal: DealResult) {
   const saving = rubles.format(deal.savingAmount);
   const current = rubles.format(product.currentPrice);
   const reference = rubles.format(product.referencePrice);
+  const source = product.source === "detmir" ? "Детский мир" : product.source ?? "магазин";
 
   const lines = [
     headline,
@@ -32,6 +34,6 @@ export function buildDealPost(product: ProductForPost, deal: DealResult) {
   if (product.ageLabel) lines.push(`👶 Возраст: ${product.ageLabel}`);
   if (deal.reasons[0]) lines.push(`📊 ${deal.reasons[0]}`);
 
-  lines.push("", `🛒 [Посмотреть товар](${product.url})`);
+  lines.push(`🏪 Источник: ${source}`, "", `🛒 [Посмотреть товар](${product.url})`);
   return lines.join("\n");
 }
