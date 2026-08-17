@@ -1,6 +1,7 @@
 import type { Product } from "../types";
 
 const DEFAULT_URL = "https://www.detmir.ru/page/sale-sale/";
+const MAX_REVIEWS_COUNT = 1_000_000;
 
 type DetmirListing = {
   externalId: string;
@@ -27,6 +28,12 @@ function asNumber(value: unknown): number | null {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+function safeReviewsCount(value: number | null): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  const rounded = Math.round(value);
+  return rounded > 0 && rounded <= MAX_REVIEWS_COUNT ? rounded : null;
+}
+
 function stripTags(value: string): string {
   return value
     .replace(/<script[\s\S]*?<\/script>/gi, "")
@@ -43,11 +50,16 @@ function stripTags(value: string): string {
 function extractReviews(text: string): { rating: number | null; reviewsCount: number | null } {
   const ratingMatch = text.match(/Рейтинг:\s*(\d(?:[.,]\d)?)/i);
   const rating = ratingMatch ? asNumber(ratingMatch[1]) : null;
-  const reviewMatch = text.match(/Рейтинг:\s*\d(?:[.,]\d)?\s+([\d\s\u00a0\u202f]+)(?=\s|$)/i);
-  const reviewsCount = reviewMatch ? asNumber(reviewMatch[1]) : null;
+
+  // Keep this deliberately strict. The previous expression consumed arbitrary
+  // digit sequences from the surrounding card/context and could produce huge
+  // values such as 9.12e+51, which PostgreSQL cannot store in integer.
+  const reviewMatch = text.match(/Рейтинг:\s*\d(?:[.,]\d)?\s+(\d{1,7})(?=\s|$)/i);
+  const reviewsCount = reviewMatch ? safeReviewsCount(asNumber(reviewMatch[1])) : null;
+
   return {
     rating: rating != null && rating <= 5 ? rating : null,
-    reviewsCount: reviewsCount != null ? Math.round(reviewsCount) : null,
+    reviewsCount,
   };
 }
 
@@ -79,8 +91,8 @@ function collectJsonLd(html: string): DetmirListing[] {
         const image = Array.isArray(item.image) ? item.image[0] : item.image;
         const imageUrl = typeof image === "string" ? image : null;
         const ratingValue = asNumber((item.aggregateRating as Record<string, unknown> | undefined)?.ratingValue);
-        const reviewsCount = asNumber((item.aggregateRating as Record<string, unknown> | undefined)?.reviewCount);
-        listings.push({ externalId: `detmir:${sku ?? url}`, title, url: url.startsWith("http") ? url : new URL(url, detmirSourceUrl()).toString(), price, oldPrice: null, rating: ratingValue, reviewsCount: reviewsCount != null ? Math.round(reviewsCount) : null, imageUrl, category: "Детские товары", available: true });
+        const reviewsCount = safeReviewsCount(asNumber((item.aggregateRating as Record<string, unknown> | undefined)?.reviewCount));
+        listings.push({ externalId: `detmir:${sku ?? url}`, title, url: url.startsWith("http") ? url : new URL(url, detmirSourceUrl()).toString(), price, oldPrice: null, rating: ratingValue, reviewsCount, imageUrl, category: "Детские товары", available: true });
       }
     } catch {
       // Ignore malformed JSON-LD blocks and continue with other public blocks.
@@ -162,7 +174,7 @@ export function normalizeDetmirListings(listings: DetmirListing[]): Product[] {
       category: item.category ?? "Детские товары",
       imageUrl: item.imageUrl ?? null,
       rating: item.rating ?? null,
-      reviewsCount: item.reviewsCount ?? null,
+      reviewsCount: safeReviewsCount(item.reviewsCount ?? null),
       price: item.price,
       oldPrice: item.oldPrice ?? null,
       available: item.available ?? true,
