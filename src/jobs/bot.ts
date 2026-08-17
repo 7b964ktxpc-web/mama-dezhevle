@@ -1,18 +1,10 @@
 import { getSupabaseAdmin } from "../lib/supabase-admin";
 import { searchProducts } from "../lib/product-search";
 import { searchByPhoto } from "../lib/photo-search";
-import {
-  getTelegramPhotoUrl,
-  getTelegramUpdates,
-  normalizeSearchQuery,
-  searchReply,
-  sendTelegramBotMessage,
-  startText,
-} from "../lib/telegram-bot";
+import { getTelegramPhotoUrl, getTelegramUpdates, normalizeSearchQuery, searchReply, sendTelegramBotMessage, startText } from "../lib/telegram-bot";
 
 function formatResults(results: Awaited<ReturnType<typeof searchProducts>>) {
   if (!results.length) return "🔎 Пока ничего подходящего не нашла. Попробуй изменить запрос или бюджет.";
-
   return [
     `🔎 Нашла ${results.length} вариант${results.length === 1 ? "" : "а"}:`,
     "",
@@ -27,13 +19,10 @@ function formatResults(results: Awaited<ReturnType<typeof searchProducts>>) {
 async function main() {
   const supabase = getSupabaseAdmin();
   const updates = await getTelegramUpdates();
-
   for (const update of updates) {
     const message = update.message;
     if (!message?.chat?.id) continue;
-
-    const updateId = update.update_id;
-    const { error: updateError } = await supabase.from("telegram_bot_updates").insert({ update_id: updateId });
+    const { error: updateError } = await supabase.from("telegram_bot_updates").insert({ update_id: update.update_id });
     if (updateError?.code === "23505") continue;
     if (updateError) throw updateError;
 
@@ -48,16 +37,12 @@ async function main() {
     if (message.photo?.length) {
       try {
         await sendTelegramBotMessage(message.chat.id, "📸 Смотрю на фото и ищу похожие товары…");
-        const largestPhoto = [...message.photo].sort((a, b) => (b.file_size ?? 0) - (a.file_size ?? 0)).at(-1) ?? message.photo.at(-1);
+        const largestPhoto = [...message.photo].sort((a, b) => (b.width * b.height) - (a.width * a.height))[0];
         if (!largestPhoto) continue;
         const imageUrl = await getTelegramPhotoUrl(largestPhoto.file_id);
         const photoSearch = await searchByPhoto(imageUrl, 5);
         const detected = photoSearch.analysis.query;
-        await supabase.from("search_requests").insert({
-          telegram_user_id: userId,
-          chat_id: message.chat.id,
-          query_text: `[photo] ${detected}`,
-        });
+        await supabase.from("search_requests").insert({ telegram_user_id: userId, chat_id: message.chat.id, query_text: `[photo] ${detected}` });
         await sendTelegramBotMessage(message.chat.id, `👀 Похоже, ищем: ${detected}\n\n${formatResults(photoSearch.results)}`);
       } catch (error) {
         console.error("Photo search failed", error);
@@ -67,21 +52,14 @@ async function main() {
     }
 
     if (!text) continue;
-
-    const { error } = await supabase.from("search_requests").insert({
-      telegram_user_id: userId,
-      chat_id: message.chat.id,
-      query_text: text,
-    });
+    const { error } = await supabase.from("search_requests").insert({ telegram_user_id: userId, chat_id: message.chat.id, query_text: text });
     if (error) {
       console.error("Could not save search request", error);
       await sendTelegramBotMessage(message.chat.id, "Не удалось сохранить запрос. Попробуй ещё раз чуть позже.");
       continue;
     }
-
     try {
-      const results = await searchProducts(text, 5);
-      await sendTelegramBotMessage(message.chat.id, formatResults(results));
+      await sendTelegramBotMessage(message.chat.id, formatResults(await searchProducts(text, 5)));
     } catch (error) {
       console.error("Product search failed", error);
       await sendTelegramBotMessage(message.chat.id, searchReply(text));
