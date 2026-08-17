@@ -26,11 +26,27 @@ jobs:
       - run: npm install --no-package-lock
       - run: npm run typecheck
       - run: npm run build
+      - name: Validate catalog feed configuration
+        env:
+          CATALOG_YML_URL: ${{ secrets.CATALOG_YML_URL }}
+          CATALOG_YML_URLS: ${{ secrets.CATALOG_YML_URLS }}
+        run: |
+          if [ -z "$CATALOG_YML_URL" ] && [ -z "$CATALOG_YML_URLS" ]; then
+            echo "ERROR: neither CATALOG_YML_URL nor CATALOG_YML_URLS is configured"
+            exit 1
+          fi
+          if [ -n "$CATALOG_YML_URL" ]; then
+            echo "CATALOG_YML_URL is configured"
+          fi
+          if [ -n "$CATALOG_YML_URLS" ]; then
+            echo "CATALOG_YML_URLS is configured"
+          fi
       - run: npm run collect
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           CATALOG_YML_URL: ${{ secrets.CATALOG_YML_URL }}
+          CATALOG_YML_URLS: ${{ secrets.CATALOG_YML_URLS }}
           CATALOG_YML_SOURCE: ${{ vars.CATALOG_YML_SOURCE }}
           DETMIR_FIXTURE_ENABLED: "false"
 
