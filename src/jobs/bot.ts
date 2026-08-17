@@ -59,7 +59,8 @@ async function main() {
       if (text === "/watches") {
         const { data, error } = await supabase.from("telegram_price_alerts").select("product_id,target_price,products(title)").eq("telegram_user_id", userId).eq("active", true);
         if (error) throw error;
-        await sendTelegramBotMessage(message.chat.id, data?.length ? ["🔔 Мои подписки:", "", ...data.map((item) => `• ${item.products?.title ?? item.product_id}${item.target_price ? ` — до ${Math.round(Number(item.target_price))} ₽` : " — любое снижение"}`)].join("\n") : "🔕 Активных подписок нет.");
+        const watches = (data ?? []) as Array<{ product_id: string; target_price: number | null; products: { title: string } | null }>;
+        await sendTelegramBotMessage(message.chat.id, watches.length ? ["🔔 Мои подписки:", "", ...watches.map((item) => `• ${item.products?.title ?? item.product_id}${item.target_price ? ` — до ${Math.round(Number(item.target_price))} ₽` : " — любое снижение"}`)].join("\n") : "🔕 Активных подписок нет.");
         continue;
       }
       if (text === "/start" || text.startsWith("/start ")) { await sendTelegramBotMessage(message.chat.id, startText(message.from?.first_name)); continue; }
