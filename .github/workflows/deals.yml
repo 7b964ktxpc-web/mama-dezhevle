@@ -26,21 +26,15 @@ jobs:
       - run: npm install --no-package-lock
       - run: npm run typecheck
       - run: npm run build
-      - name: Validate catalog source configuration
+      - name: Report catalog source configuration
         env:
           CATALOG_YML_URL: ${{ secrets.CATALOG_YML_URL }}
           CATALOG_YML_URLS: ${{ secrets.CATALOG_YML_URLS }}
-          YANDEX_MARKET_API_KEY: ${{ secrets.YANDEX_MARKET_API_KEY }}
-          YANDEX_MARKET_BUSINESS_ID: ${{ secrets.YANDEX_MARKET_BUSINESS_ID }}
         run: |
-          if [ -z "$CATALOG_YML_URL" ] && [ -z "$CATALOG_YML_URLS" ] && { [ -z "$YANDEX_MARKET_API_KEY" ] || [ -z "$YANDEX_MARKET_BUSINESS_ID" ]; }; then
-            echo "ERROR: configure either CATALOG_YML_URL(S) or both YANDEX_MARKET_API_KEY and YANDEX_MARKET_BUSINESS_ID"
-            exit 1
-          fi
-          [ -n "$CATALOG_YML_URL" ] && echo "CATALOG_YML_URL is configured"
-          [ -n "$CATALOG_YML_URLS" ] && echo "CATALOG_YML_URLS is configured"
-          if [ -n "$YANDEX_MARKET_API_KEY" ] && [ -n "$YANDEX_MARKET_BUSINESS_ID" ]; then
-            echo "Yandex Market API source is configured"
+          if [ -n "$CATALOG_YML_URL" ] || [ -n "$CATALOG_YML_URLS" ]; then
+            echo "Legacy YML source is configured"
+          else
+            echo "No YML source configured; waiting for official marketplace partner adapters"
           fi
       - run: npm run collect
         env:
@@ -49,8 +43,6 @@ jobs:
           CATALOG_YML_URL: ${{ secrets.CATALOG_YML_URL }}
           CATALOG_YML_URLS: ${{ secrets.CATALOG_YML_URLS }}
           CATALOG_YML_SOURCE: ${{ vars.CATALOG_YML_SOURCE }}
-          YANDEX_MARKET_API_KEY: ${{ secrets.YANDEX_MARKET_API_KEY }}
-          YANDEX_MARKET_BUSINESS_ID: ${{ secrets.YANDEX_MARKET_BUSINESS_ID }}
           DETMIR_FIXTURE_ENABLED: "false"
 
   publish:
