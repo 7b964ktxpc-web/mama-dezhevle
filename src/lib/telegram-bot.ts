@@ -8,11 +8,7 @@ function requireEnv(name: string) {
 
 async function telegramCall<T>(method: string, body: Record<string, unknown>): Promise<T> {
   const token = requireEnv("TELEGRAM_BOT_TOKEN");
-  const response = await fetch(`${API}${token}/${method}`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const response = await fetch(`${API}${token}/${method}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   if (!response.ok) throw new Error(`Telegram API error ${response.status}: ${await response.text()}`);
   const json = await response.json();
   if (!json.ok) throw new Error(`Telegram API error: ${JSON.stringify(json)}`);
@@ -49,7 +45,7 @@ export async function sendTelegramBotMessage(chatId: number | string, text: stri
 
 export function startText(firstName?: string) {
   const name = firstName ? `, ${firstName}` : "";
-  return [`Привет${name}! 👋`, "Я — бот «Мама, дешевле!».", "", "Напиши, что нужно найти. Например:", "👕 рубашка мальчику 3 года до 1500 ₽", "👟 кроссовки девочке 30 размера до 2500 ₽", "", "Или просто пришли 📸 фото — попробую определить товар и найти похожие варианты дешевле."].join("\n");
+  return [`Привет${name}! 👋`, "Я — бот «Мама, дешевле!».", "", "Напиши, что нужно найти. Например:", "👕 рубашка мальчику 3 года до 1500 ₽", "👟 кроссовки девочке 30 размера до 2500 ₽", "", "Или просто пришли 📸 фото — попробую определить товар и найти похожие варианты дешевле.", "", "Если хочешь следить за ценой найденного товара, отправь: /watch ID ЦЕНА", "Отключить отслеживание: /unwatch ID", "Мои подписки: /watches"].join("\n");
 }
 
 export function normalizeSearchQuery(text: string) {
@@ -58,4 +54,15 @@ export function normalizeSearchQuery(text: string) {
 
 export function searchReply(query: string) {
   return ["🔎 Запрос сохранён:", `«${query}»`, "", "Когда каталог будет подключён, здесь появятся несколько самых выгодных вариантов."].join("\n");
+}
+
+export function parseWatchCommand(text: string) {
+  const match = text.trim().match(/^\/watch(?:@\w+)?\s+(\S+)(?:\s+(\d+(?:[.,]\d+)?))?$/i);
+  if (!match) return null;
+  return { productId: match[1], targetPrice: match[2] ? Number(match[2].replace(",", ".")) : null };
+}
+
+export function parseUnwatchCommand(text: string) {
+  const match = text.trim().match(/^\/unwatch(?:@\w+)?\s+(\S+)$/i);
+  return match ? match[1] : null;
 }
