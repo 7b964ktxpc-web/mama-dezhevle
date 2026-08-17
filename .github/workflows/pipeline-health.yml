@@ -1,0 +1,28 @@
+name: pipeline-health
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+      - run: npm install --no-package-lock
+      - run: npm run typecheck
+      - name: Verify workflow files
+        run: |
+          test -f .github/workflows/deals.yml
+          test -f .github/workflows/telegram-test.yml
+          test -f .github/workflows/deal-preview.yml
+          echo "Workflow files present"
