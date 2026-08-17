@@ -2,8 +2,17 @@ name: deals-pipeline
 
 on:
   workflow_dispatch:
+    inputs:
+      preview_only:
+        description: "Только показать посты, без публикации в Telegram"
+        required: true
+        default: true
+        type: boolean
   schedule:
     - cron: "17 */3 * * *"
+
+env:
+  PREVIEW_ONLY: ${{ github.event_name == 'schedule' && 'true' || inputs.preview_only }}
 
 jobs:
   collect:
@@ -37,3 +46,4 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          PREVIEW_ONLY: ${{ env.PREVIEW_ONLY }}
