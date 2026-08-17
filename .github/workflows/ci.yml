@@ -18,4 +18,5 @@ jobs:
       - run: npm install --no-package-lock
       - run: npm run typecheck
       - run: npm run test:feed
+      - run: npm run test:price-alerts
       - run: npm run build
