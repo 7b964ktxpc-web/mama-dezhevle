@@ -6,7 +6,14 @@ import { enabledProductSources } from "../lib/sources/registry";
 async function main() {
   const supabase = getSupabaseAdmin();
   const sources = enabledProductSources();
-  if (sources.length === 0) throw new Error("No product sources are enabled");
+
+  // Partner adapters are intentionally disabled until official marketplace
+  // access is configured. A scheduled run must stay green rather than inventing
+  // catalog data or requiring seller-only credentials.
+  if (sources.length === 0) {
+    console.log(JSON.stringify({ collected: 0, sources: 0, priceSnapshots: 0, dealsCreated: 0, alertsNotified: 0, skipped: "no_enabled_sources" }));
+    return;
+  }
 
   let collected = 0;
   let priceSnapshots = 0;
