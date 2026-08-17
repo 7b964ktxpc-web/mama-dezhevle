@@ -6,12 +6,8 @@ async function main() {
   const first = parseYmlFeed(xml, "test-yml");
   const second = parseYmlFeed(xml, "test-yml");
 
-  if (first.products.length !== 3) {
-    throw new Error(`Expected 3 products, got ${first.products.length}`);
-  }
-  if (second.products.length !== 3) {
-    throw new Error(`Repeat import parsed ${second.products.length} products instead of 3`);
-  }
+  if (first.products.length !== 3) throw new Error(`Expected 3 products, got ${first.products.length}`);
+  if (second.products.length !== 3) throw new Error(`Repeat import parsed ${second.products.length} products instead of 3`);
 
   const ids = new Set(first.products.map((product) => `${product.source}:${product.externalId}`));
   if (ids.size !== 3) throw new Error("Duplicate source + offer_id detected");
@@ -23,14 +19,12 @@ async function main() {
 
   const invalidOldPrice = `<yml_catalog><shop><offers><offer id="x"><url>https://example.com/x</url><price>1000</price><oldprice>900</oldprice><name>Test</name></offer></offers></shop></yml_catalog>`;
   const invalid = parseYmlFeed(invalidOldPrice, "test-yml").products[0];
-  if (!invalid || invalid.oldPrice !== null) {
-    throw new Error("oldprice validation failed");
-  }
+  if (!invalid || invalid.oldPrice !== null) throw new Error("oldprice validation failed");
 
   console.log("Feed importer test passed: 3 products, stable source+offer_id, price/oldprice/params mapped.");
 }
 
-void main().catch((error) => {
+main().catch((error) => {
   console.error(error);
   process.exitCode = 1;
 });
