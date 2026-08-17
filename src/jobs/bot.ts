@@ -1,6 +1,8 @@
 import { getSupabaseAdmin } from "../lib/supabase-admin";
 import { searchProducts } from "../lib/product-search";
+import { searchByPhoto } from "../lib/photo-search";
 import {
+  getTelegramPhotoUrl,
   getTelegramUpdates,
   normalizeSearchQuery,
   searchReply,
@@ -31,29 +33,46 @@ async function main() {
     if (!message?.chat?.id) continue;
 
     const updateId = update.update_id;
-    const { error: updateError } = await supabase
-      .from("telegram_bot_updates")
-      .insert({ update_id: updateId });
-
+    const { error: updateError } = await supabase.from("telegram_bot_updates").insert({ update_id: updateId });
     if (updateError?.code === "23505") continue;
     if (updateError) throw updateError;
 
-    const text = normalizeSearchQuery(message.text ?? "");
-    if (!text) continue;
+    const text = normalizeSearchQuery(message.text ?? message.caption ?? "");
+    const userId = message.from?.id ?? message.chat.id;
 
     if (text === "/start" || text.startsWith("/start ")) {
       await sendTelegramBotMessage(message.chat.id, startText(message.from?.first_name));
       continue;
     }
 
-    const userId = message.from?.id ?? message.chat.id;
-    const payload = {
+    if (message.photo?.length) {
+      try {
+        await sendTelegramBotMessage(message.chat.id, "📸 Смотрю на фото и ищу похожие товары…");
+        const largestPhoto = [...message.photo].sort((a, b) => (b.file_size ?? 0) - (a.file_size ?? 0)).at(-1) ?? message.photo.at(-1);
+        if (!largestPhoto) continue;
+        const imageUrl = await getTelegramPhotoUrl(largestPhoto.file_id);
+        const photoSearch = await searchByPhoto(imageUrl, 5);
+        const detected = photoSearch.analysis.query;
+        await supabase.from("search_requests").insert({
+          telegram_user_id: userId,
+          chat_id: message.chat.id,
+          query_text: `[photo] ${detected}`,
+        });
+        await sendTelegramBotMessage(message.chat.id, `👀 Похоже, ищем: ${detected}\n\n${formatResults(photoSearch.results)}`);
+      } catch (error) {
+        console.error("Photo search failed", error);
+        await sendTelegramBotMessage(message.chat.id, "Не смогла распознать фото. Попробуй отправить более чёткое фото товара или напиши, что именно нужно найти.");
+      }
+      continue;
+    }
+
+    if (!text) continue;
+
+    const { error } = await supabase.from("search_requests").insert({
       telegram_user_id: userId,
       chat_id: message.chat.id,
       query_text: text,
-    };
-
-    const { error } = await supabase.from("search_requests").insert(payload);
+    });
     if (error) {
       console.error("Could not save search request", error);
       await sendTelegramBotMessage(message.chat.id, "Не удалось сохранить запрос. Попробуй ещё раз чуть позже.");
