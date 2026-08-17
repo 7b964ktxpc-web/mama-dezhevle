@@ -10,7 +10,7 @@ function formatResults(results: Awaited<ReturnType<typeof searchProducts>>) {
     "",
     ...results.map((item, index) => {
       const rating = item.rating ? ` ⭐ ${item.rating}` : "";
-      const oldPrice = item.oldPrice ? ` (было ${Math.round(item.oldPrice).toLocaleString("ru-RU")} ₽)` : "";
+      const oldPrice = item.oldPrice && item.oldPrice > item.price ? ` (было ${Math.round(item.oldPrice).toLocaleString("ru-RU")} ₽)` : "";
       return `${index + 1}. ${item.title}\n💰 ${Math.round(item.price).toLocaleString("ru-RU")} ₽${oldPrice}${rating}\n👉 ${item.url}`;
     }),
   ].join("\n\n");
@@ -42,7 +42,8 @@ async function main() {
         const imageUrl = await getTelegramPhotoUrl(largestPhoto.file_id);
         const photoSearch = await searchByPhoto(imageUrl, 5);
         const detected = photoSearch.analysis.query;
-        await supabase.from("search_requests").insert({ telegram_user_id: userId, chat_id: message.chat.id, query_text: `[photo] ${detected}` });
+        const { error: requestError } = await supabase.from("search_requests").insert({ telegram_user_id: userId, chat_id: message.chat.id, query_text: `[photo] ${detected}` });
+        if (requestError) console.error("Could not save photo search", requestError);
         await sendTelegramBotMessage(message.chat.id, `👀 Похоже, ищем: ${detected}\n\n${formatResults(photoSearch.results)}`);
       } catch (error) {
         console.error("Photo search failed", error);
