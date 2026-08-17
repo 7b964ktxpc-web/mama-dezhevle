@@ -9,6 +9,7 @@ type DetmirListing = {
   price: number;
   oldPrice?: number | null;
   rating?: number | null;
+  reviewsCount?: number | null;
   imageUrl?: string | null;
   category?: string | null;
   available?: boolean;
@@ -39,6 +40,17 @@ function stripTags(value: string): string {
     .trim();
 }
 
+function extractReviews(text: string): { rating: number | null; reviewsCount: number | null } {
+  const ratingMatch = text.match(/Рейтинг:\s*(\d(?:[.,]\d)?)/i);
+  const rating = ratingMatch ? asNumber(ratingMatch[1]) : null;
+  const reviewMatch = text.match(/Рейтинг:\s*\d(?:[.,]\d)?\s+([\d\s\u00a0\u202f]+)(?=\s|$)/i);
+  const reviewsCount = reviewMatch ? asNumber(reviewMatch[1]) : null;
+  return {
+    rating: rating != null && rating <= 5 ? rating : null,
+    reviewsCount: reviewsCount != null ? Math.round(reviewsCount) : null,
+  };
+}
+
 function collectJsonLd(html: string): DetmirListing[] {
   const listings: DetmirListing[] = [];
   const blocks = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi) ?? [];
@@ -67,7 +79,8 @@ function collectJsonLd(html: string): DetmirListing[] {
         const image = Array.isArray(item.image) ? item.image[0] : item.image;
         const imageUrl = typeof image === "string" ? image : null;
         const ratingValue = asNumber((item.aggregateRating as Record<string, unknown> | undefined)?.ratingValue);
-        listings.push({ externalId: `detmir:${sku ?? url}`, title, url: url.startsWith("http") ? url : new URL(url, detmirSourceUrl()).toString(), price, oldPrice: null, rating: ratingValue, imageUrl, category: "Детские товары", available: true });
+        const reviewsCount = asNumber((item.aggregateRating as Record<string, unknown> | undefined)?.reviewCount);
+        listings.push({ externalId: `detmir:${sku ?? url}`, title, url: url.startsWith("http") ? url : new URL(url, detmirSourceUrl()).toString(), price, oldPrice: null, rating: ratingValue, reviewsCount: reviewsCount != null ? Math.round(reviewsCount) : null, imageUrl, category: "Детские товары", available: true });
       }
     } catch {
       // Ignore malformed JSON-LD blocks and continue with other public blocks.
@@ -93,42 +106,40 @@ function collectListingHtml(html: string): DetmirListing[] {
   for (const match of html.matchAll(productHref)) {
     const href = match[1];
     const position = match.index ?? 0;
+    const anchorStart = html.lastIndexOf("<a", position);
+    const anchorEnd = html.indexOf("</a>", position);
+    const anchorText = anchorStart >= 0 && anchorEnd > position
+      ? stripTags(html.slice(anchorStart, anchorEnd + 4))
+      : "";
     const before = stripTags(html.slice(Math.max(0, position - 2600), position));
     const after = stripTags(html.slice(position, Math.min(html.length, position + 1600)));
+    const context = `${anchorText} ${before} ${after}`;
 
     const discountMatches = [...before.matchAll(/(?:−|-)\s*(\d{1,3})\s*%/g)];
     const discount = discountMatches.length ? Number(discountMatches.at(-1)?.[1]) : null;
     const prices = extractPrices(before).slice(-4);
-    const titleCandidates = [
-      stripTags(after.replace(/^href\s*=\s*["'][^"']+["']/i, "").slice(0, 600)),
-      stripTags(html.slice(position, Math.min(html.length, position + 900))),
-    ];
-    const title = titleCandidates
-      .map((value) => value.replace(/^\s*[>\-:]+\s*/, "").trim())
-      .find((value) => value.length >= 8 && !/^\d[\d\s.,]*₽/.test(value));
+    const title = anchorText
+      .replace(/^(В избранное|В корзину)\s*/i, "")
+      .replace(/\s+(В избранное|В корзину).*$/i, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    const reviewMeta = extractReviews(context);
 
-    if (!href || !title || !prices.length || !discount || !Number.isFinite(discount)) continue;
+    if (!href || !title || title.length < 8 || !prices.length || !discount || !Number.isFinite(discount)) continue;
 
     const currentPrice = prices.at(-2) ?? prices.at(-1) ?? null;
     const oldPrice = prices.at(-1) ?? null;
     if (!currentPrice || !oldPrice || oldPrice <= currentPrice) continue;
 
     const url = href.startsWith("http") ? href : new URL(href, detmirSourceUrl()).toString();
-    const cleanTitle = title
-      .replace(/^(В избранное|В корзину)\s*/i, "")
-      .replace(/\s+(В избранное|В корзину).*$/i, "")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    if (cleanTitle.length < 8) continue;
-
     listings.push({
       externalId: `detmir:${url}`,
-      title: cleanTitle,
+      title,
       url,
       price: currentPrice,
       oldPrice,
-      rating: null,
+      rating: reviewMeta.rating,
+      reviewsCount: reviewMeta.reviewsCount,
       imageUrl: null,
       category: "Детские товары",
       available: true,
@@ -151,7 +162,7 @@ export function normalizeDetmirListings(listings: DetmirListing[]): Product[] {
       category: item.category ?? "Детские товары",
       imageUrl: item.imageUrl ?? null,
       rating: item.rating ?? null,
-      reviewsCount: null,
+      reviewsCount: item.reviewsCount ?? null,
       price: item.price,
       oldPrice: item.oldPrice ?? null,
       available: item.available ?? true,
@@ -173,4 +184,3 @@ export async function collectDetmirPublic(): Promise<Product[]> {
   if (products.length === 0) throw new Error("Detmir public catalog returned no product entries");
   return products;
 }
-
