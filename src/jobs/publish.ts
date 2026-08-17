@@ -11,16 +11,31 @@ async function main() {
     .select("id, product_id, current_price, reference_price, discount_percent, deal_score, deal_level, ai_reason, products(title,url,rating,reviews_count,age_label,source,available)")
     .eq("status", "candidate")
     .gte("deal_score", 80)
+    .in("deal_level", ["good_deal", "super_deal"])
     .order("deal_score", { ascending: false })
     .limit(10);
 
   if (error) throw error;
 
   let prepared = 0;
+  let skippedPublished = 0;
+
   for (const deal of deals ?? []) {
     const product = Array.isArray(deal.products) ? deal.products[0] : deal.products;
     if (!product) continue;
     if ((product.reviews_count ?? 0) < 10 || product.available === false) continue;
+
+    const { data: existingPost, error: postLookupError } = await supabase
+      .from("telegram_posts")
+      .select("id")
+      .eq("deal_id", deal.id)
+      .maybeSingle();
+
+    if (postLookupError) throw postLookupError;
+    if (existingPost) {
+      skippedPublished += 1;
+      continue;
+    }
 
     const text = buildDealPost(
       {
@@ -51,10 +66,11 @@ async function main() {
 
     const telegram = await sendTelegramPost(text);
     const messageId = telegram?.result?.message_id ?? null;
-    await supabase.from("telegram_posts").upsert(
-      { deal_id: deal.id, telegram_message_id: messageId, post_text: text },
-      { onConflict: "deal_id" },
-    );
+    await supabase.from("telegram_posts").insert({
+      deal_id: deal.id,
+      telegram_message_id: messageId,
+      post_text: text,
+    });
     await supabase
       .from("deals")
       .update({ status: "published", published_at: new Date().toISOString() })
@@ -62,7 +78,7 @@ async function main() {
     console.log(`Published deal ${deal.id}`);
   }
 
-  console.log(JSON.stringify({ prepared, previewOnly }));
+  console.log(JSON.stringify({ prepared, skippedPublished, previewOnly }));
 }
 
 main().catch((error) => {
