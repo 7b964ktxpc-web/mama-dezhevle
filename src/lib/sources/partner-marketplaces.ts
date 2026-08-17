@@ -1,6 +1,7 @@
 import type { ProductSource } from "./source";
 import { simaLandSource } from "./sima-land";
 import { yandexMarketAffiliateSource } from "./yandex-market-affiliate";
+import { aliExpressSource } from "./aliexpress";
 
 /**
  * Partner/catalog marketplace registry.
@@ -17,12 +18,11 @@ export const PARTNER_MARKETPLACES = [
 export type PartnerMarketplace = (typeof PARTNER_MARKETPLACES)[number];
 
 export function configuredPartnerSources(): ProductSource[] {
-  return [simaLandSource, yandexMarketAffiliateSource]
+  return [simaLandSource, yandexMarketAffiliateSource, aliExpressSource]
     .filter((source) => source.isEnabled());
 }
 
 /**
- * AliExpress is represented in the architecture now, but remains disabled
- * until we verify the currently available official affiliate API/feed and
- * its credentials. We do not enable scraping or undocumented endpoints.
+ * AliExpress uses only a configured official/partner YML feed. Until
+ * ALIEXPRESS_YML_URL is supplied, the source remains disabled.
  */
