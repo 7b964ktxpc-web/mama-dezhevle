@@ -30,16 +30,23 @@ jobs:
         env:
           CATALOG_YML_URL: ${{ secrets.CATALOG_YML_URL }}
           CATALOG_YML_URLS: ${{ secrets.CATALOG_YML_URLS }}
+          SIMA_LAND_API_KEY: ${{ secrets.SIMA_LAND_API_KEY }}
         run: |
-          if [ -n "$CATALOG_YML_URL" ] || [ -n "$CATALOG_YML_URLS" ]; then
+          if [ -n "$SIMA_LAND_API_KEY" ]; then
+            echo "Sima-land API source is configured"
+          elif [ -n "$CATALOG_YML_URL" ] || [ -n "$CATALOG_YML_URLS" ]; then
             echo "Legacy YML source is configured"
           else
-            echo "No YML source configured; waiting for official marketplace partner adapters"
+            echo "No catalog source configured"
           fi
       - run: npm run collect
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SIMA_LAND_API_KEY: ${{ secrets.SIMA_LAND_API_KEY }}
+          SIMA_LAND_PAGES: ${{ vars.SIMA_LAND_PAGES }}
+          SIMA_LAND_ITEM_IDS: ${{ vars.SIMA_LAND_ITEM_IDS }}
+          SIMA_LAND_BABY_ONLY: ${{ vars.SIMA_LAND_BABY_ONLY }}
           CATALOG_YML_URL: ${{ secrets.CATALOG_YML_URL }}
           CATALOG_YML_URLS: ${{ secrets.CATALOG_YML_URLS }}
           CATALOG_YML_SOURCE: ${{ vars.CATALOG_YML_SOURCE }}
