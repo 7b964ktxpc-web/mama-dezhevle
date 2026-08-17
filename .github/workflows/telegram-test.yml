@@ -1,0 +1,39 @@
+name: Telegram test publish
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send test message to Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$TELEGRAM_BOT_TOKEN"
+          test -n "$TELEGRAM_CHANNEL_ID"
+
+          payload=$(python - <<'PY'
+          import json, os
+          print(json.dumps({
+              "chat_id": os.environ["TELEGRAM_CHANNEL_ID"],
+              "text": "🤖 *Мама, дешевле!* — система на связи\n\nПервый автоматический тест публикации прошёл успешно 🚀\n\nСледующий этап — автоматический поиск выгодных товаров.",
+              "parse_mode": "Markdown",
+              "disable_web_page_preview": True,
+          }))
+          PY
+          )
+
+          response=$(curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header 'Content-Type: application/json' \
+            --data "$payload" \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage")
+
+          echo "$response" | python -c 'import json,sys; data=json.load(sys.stdin); assert data.get("ok") is True, data; print("Telegram API: OK")'
