@@ -13,8 +13,7 @@ on:
 
 env:
   PREVIEW_ONLY: ${{ github.event_name == 'schedule' && 'true' || inputs.preview_only }}
-
-jobs:
+\ njobs:
   collect:
     runs-on: ubuntu-latest
     steps:
@@ -30,14 +29,11 @@ jobs:
         env:
           CATALOG_YML_URL: ${{ secrets.CATALOG_YML_URL }}
           CATALOG_YML_URLS: ${{ secrets.CATALOG_YML_URLS }}
-          SIMA_LAND_API_KEY: ${{ secrets.SIMA_LAND_API_KEY }}
+          DETMIR_PUBLIC_ENABLED: "true"
         run: |
-          if [ -n "$SIMA_LAND_API_KEY" ]; then
-            echo "Sima-land API source is configured"
-          elif [ -n "$CATALOG_YML_URL" ] || [ -n "$CATALOG_YML_URLS" ]; then
-            echo "Legacy YML source is configured"
-          else
-            echo "No catalog source configured"
+          echo "Detmir public catalog source is enabled"
+          if [ -n "$CATALOG_YML_URL" ] || [ -n "$CATALOG_YML_URLS" ]; then
+            echo "Legacy YML source is also configured"
           fi
       - run: npm run collect
         env:
@@ -50,6 +46,7 @@ jobs:
           CATALOG_YML_URL: ${{ secrets.CATALOG_YML_URL }}
           CATALOG_YML_URLS: ${{ secrets.CATALOG_YML_URLS }}
           CATALOG_YML_SOURCE: ${{ vars.CATALOG_YML_SOURCE }}
+          DETMIR_PUBLIC_ENABLED: "true"
           DETMIR_FIXTURE_ENABLED: "false"
 
   publish:
