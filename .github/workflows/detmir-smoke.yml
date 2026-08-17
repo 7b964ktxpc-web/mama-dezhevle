@@ -1,0 +1,26 @@
+name: detmir-public-smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    env:
+      PREVIEW_ONLY: "true"
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      DETMIR_PUBLIC_ENABLED: "true"
+      DETMIR_FIXTURE_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+      - run: npm install --no-package-lock
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm run collect
