@@ -1,4 +1,4 @@
-import { parseSearchQuery, searchProducts } from "./product-search";
+import { searchProducts } from "./product-search";
 
 const OPENAI_API_URL = "https://api.openai.com/v1/responses";
 
@@ -27,24 +27,16 @@ export async function analyzeProductPhoto(imageUrl: string): Promise<PhotoSearch
     },
     body: JSON.stringify({
       model: process.env.OPENAI_VISION_MODEL || "gpt-4.1-mini",
-      input: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: [
-                "Ты помощник сервиса Мама, дешевле!.",
-                "Распознай детский товар на фотографии для поиска в каталоге.",
-                "Верни только JSON с полями query, category, gender, color, age, size.",
-                "Не выдумывай возраст, размер или пол, если их нельзя определить.",
-                "query должен быть коротким поисковым запросом на русском.",
-              ].join(" "),
-            },
-            { type: "input_image", image_url: imageUrl },
-          ],
-        },
-      ],
+      input: [{
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: "Распознай детский товар на фото. Верни JSON: {query, category?, gender?, color?, age?, size?}. Не выдумывай неизвестные характеристики. query — короткий русский поисковый запрос.",
+          },
+          { type: "input_image", image_url: imageUrl },
+        ],
+      }],
     }),
   });
 
@@ -52,25 +44,25 @@ export async function analyzeProductPhoto(imageUrl: string): Promise<PhotoSearch
   const json = await response.json() as { output_text?: string };
   if (!json.output_text) throw new Error("Vision API returned no output");
 
-  const parsed = JSON.parse(json.output_text.replace(/^```json\s*/i, "").replace(/\s*```$/i, "")) as PhotoSearchAnalysis;
+  const cleaned = json.output_text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+  const parsed = JSON.parse(cleaned) as PhotoSearchAnalysis;
   if (!parsed.query || typeof parsed.query !== "string") throw new Error("Vision result has no query");
   return parsed;
 }
 
 export async function searchByPhoto(imageUrl: string, limit = 5) {
   const analysis = await analyzeProductPhoto(imageUrl);
-  const filters = parseSearchQuery(analysis.query);
   const enrichedQuery = [
     analysis.query,
+    analysis.category,
     analysis.gender,
     analysis.color,
-    analysis.age ? `${analysis.age} лет` : undefined,
-    analysis.size ? `${analysis.size} см` : undefined,
+    typeof analysis.age === "number" ? `${analysis.age} лет` : undefined,
+    typeof analysis.size === "number" ? `${analysis.size} размер` : undefined,
   ].filter(Boolean).join(" ");
 
   return {
     analysis,
-    filters,
     results: await searchProducts(enrichedQuery, limit),
   };
 }
