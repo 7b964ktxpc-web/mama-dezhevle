@@ -1,4 +1,5 @@
 import type { ProductSource } from "./source";
+import { yandexMarketAffiliateSource } from "./yandex-market-affiliate";
 
 /**
  * Partner marketplace registry.
@@ -9,7 +10,6 @@ import type { ProductSource } from "./source";
 export const PARTNER_MARKETPLACES = ["yandex-market", "ozon", "wildberries"] as const;
 export type PartnerMarketplace = (typeof PARTNER_MARKETPLACES)[number];
 
-/** Concrete adapters are enabled only after official partner access is configured. */
 export function configuredPartnerSources(): ProductSource[] {
-  return [];
+  return [yandexMarketAffiliateSource].filter((source) => source.isEnabled());
 }
