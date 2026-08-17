@@ -1,15 +1,13 @@
 import { calculateDealScore } from "../lib/deal-score";
 import { getSupabaseAdmin } from "../lib/supabase-admin";
 import { notifyPriceAlerts } from "../lib/price-alerts";
+import { getPriceHistory } from "../lib/price-history";
 import { enabledProductSources } from "../lib/sources/registry";
 
 async function main() {
   const supabase = getSupabaseAdmin();
   const sources = enabledProductSources();
 
-  // Partner adapters are intentionally disabled until official marketplace
-  // access is configured. A scheduled run must stay green rather than inventing
-  // catalog data or requiring seller-only credentials.
   if (sources.length === 0) {
     console.log(JSON.stringify({ collected: 0, sources: 0, priceSnapshots: 0, dealsCreated: 0, alertsNotified: 0, skipped: "no_enabled_sources" }));
     return;
@@ -48,8 +46,18 @@ async function main() {
         alertsNotified += await notifyPriceAlerts(saved.id, currentPrice, product.title, product.url);
       }
 
+      const history = await getPriceHistory(supabase, saved.id);
       const referencePrice = currentOldPrice ?? currentPrice;
-      const deal = calculateDealScore({ currentPrice, referencePrice, rating: product.rating, reviewsCount: product.reviewsCount, available: product.available });
+      const deal = calculateDealScore({
+        currentPrice,
+        referencePrice,
+        average30d: history.average30d,
+        min30d: history.min30d,
+        rating: product.rating,
+        reviewsCount: product.reviewsCount,
+        available: product.available,
+      });
+
       if (deal.level !== "reject") {
         const { data: latestDeal, error: latestDealError } = await supabase.from("deals")
           .select("current_price,reference_price,discount_percent,deal_score,deal_level,status")
@@ -59,8 +67,11 @@ async function main() {
           Number(latestDeal.discount_percent) === Number(deal.realDiscountPercent) && Number(latestDeal.deal_score) === Number(deal.score) &&
           latestDeal.deal_level === deal.level && latestDeal.status === "candidate";
         if (!sameDeal) {
-          const { error: dealError } = await supabase.from("deals").insert({ product_id: saved.id, current_price: currentPrice, reference_price: referencePrice,
-            discount_percent: deal.realDiscountPercent, deal_score: deal.score, deal_level: deal.level, ai_reason: deal.reasons.join("; ") || null, status: "candidate" });
+          const { error: dealError } = await supabase.from("deals").insert({
+            product_id: saved.id, current_price: currentPrice, reference_price: referencePrice,
+            discount_percent: deal.realDiscountPercent, deal_score: deal.score, deal_level: deal.level,
+            ai_reason: deal.reasons.join("; ") || null, status: "candidate",
+          });
           if (dealError) throw dealError;
           dealsCreated += 1;
         }
