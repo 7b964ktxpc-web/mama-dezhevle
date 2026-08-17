@@ -49,7 +49,8 @@ export function parseYmlFeed(xml: string, source: string): ParsedFeed {
   if (!offers) return { source, products: [] };
 
   const products: Product[] = [];
-  for (const offer of asArray(offers.offer as Record<string, unknown> | undefined)) {
+  const feedOffers = asArray(offers.offer as Record<string, unknown> | Record<string, unknown>[] | undefined);
+  for (const offer of feedOffers) {
     const externalId = text(offer["@_id"]);
     const url = text(offer.url);
     const title = text(offer.name);
