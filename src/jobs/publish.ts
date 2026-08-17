@@ -2,6 +2,8 @@ import { getSupabaseAdmin } from "../lib/supabase-admin";
 import { buildDealPost } from "../lib/post-template";
 import { sendTelegramPost } from "../lib/telegram";
 
+const previewOnly = process.env.PREVIEW_ONLY === "true";
+
 async function main() {
   const supabase = getSupabaseAdmin();
   const { data: deals, error } = await supabase
@@ -37,6 +39,12 @@ async function main() {
       },
     );
 
+    if (previewOnly) {
+      console.log(`PREVIEW deal ${deal.id}:`);
+      console.log(text);
+      continue;
+    }
+
     const telegram = await sendTelegramPost(text);
     const messageId = telegram?.result?.message_id ?? null;
 
@@ -49,7 +57,11 @@ async function main() {
       { onConflict: "deal_id" },
     );
 
-    await supabase.from("deals").update({ status: "published", published_at: new Date().toISOString() }).eq("id", deal.id);
+    await supabase
+      .from("deals")
+      .update({ status: "published", published_at: new Date().toISOString() })
+      .eq("id", deal.id);
+
     console.log(`Published deal ${deal.id}`);
   }
 }
