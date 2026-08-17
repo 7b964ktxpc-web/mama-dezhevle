@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<yml_catalog date="2026-08-17T12:00:00+03:00">
+  <shop>
+    <name>Мама Дешевле Test Shop</name>
+    <company>Мама Дешевле</company>
+    <url>https://example.com</url>
+    <categories>
+      <category id="1">Детская одежда</category>
+    </categories>
+    <offers>
+      <offer id="shirt-boy-104" available="true">
+        <url>https://example.com/shirt-boy-104</url>
+        <price>1290</price>
+        <oldprice>1990</oldprice>
+        <currencyId>RUR</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://example.com/images/shirt-boy-104.jpg</picture>
+        <name>Рубашка для мальчика 3-4 года</name>
+        <vendor>Test Kids</vendor>
+        <param name="Пол">мальчик</param>
+        <param name="Рост">104 см</param>
+        <param name="Возраст">3-4 года</param>
+      </offer>
+      <offer id="shirt-boy-110" available="true">
+        <url>https://example.com/shirt-boy-110</url>
+        <price>990</price>
+        <oldprice>1490</oldprice>
+        <currencyId>RUR</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://example.com/images/shirt-boy-110.jpg</picture>
+        <name>Рубашка для мальчика 4-5 лет</name>
+        <vendor>Test Kids</vendor>
+        <param name="Пол">мальчик</param>
+        <param name="Рост">110 см</param>
+        <param name="Возраст">4-5 лет</param>
+      </offer>
+      <offer id="dress-girl-104" available="true">
+        <url>https://example.com/dress-girl-104</url>
+        <price>1490</price>
+        <oldprice>2190</oldprice>
+        <currencyId>RUR</currencyId>
+        <categoryId>1</categoryId>
+        <picture>https://example.com/images/dress-girl-104.jpg</picture>
+        <name>Платье для девочки 3-4 года</name>
+        <vendor>Test Kids</vendor>
+        <param name="Пол">девочка</param>
+        <param name="Рост">104 см</param>
+        <param name="Возраст">3-4 года</param>
+      </offer>
+    </offers>
+  </shop>
+</yml_catalog>
