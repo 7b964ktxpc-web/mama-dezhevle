@@ -11,29 +11,20 @@ function formatResults(results: Awaited<ReturnType<typeof searchProducts>>) {
 }
 
 async function acquireBotLock(supabase: ReturnType<typeof getSupabaseAdmin>, token: string) {
-  const now = new Date().toISOString();
-  const staleBefore = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-  const { data: claimed, error } = await supabase.from("telegram_bot_lock")
-    .update({ locked_at: now, owner_token: token })
-    .or(`owner_token.is.null,locked_at.lt.${staleBefore}`)
-    .select("id")
-    .maybeSingle();
+  const { data, error } = await supabase.rpc("acquire_telegram_bot_lock", { p_owner_token: token, p_stale_minutes: 10 });
   if (error) throw error;
-  if (claimed) return true;
-  const { error: insertError } = await supabase.from("telegram_bot_lock").insert({ id: true, locked_at: now, owner_token: token });
-  if (!insertError) return true;
-  if (insertError.code !== "23505") throw insertError;
-  return false;
+  return Boolean(data);
 }
 
 async function refreshBotLock(supabase: ReturnType<typeof getSupabaseAdmin>, token: string) {
-  const { data, error } = await supabase.from("telegram_bot_lock").update({ locked_at: new Date().toISOString() }).eq("owner_token", token).select("id").maybeSingle();
+  const { data, error } = await supabase.rpc("refresh_telegram_bot_lock", { p_owner_token: token });
   if (error) throw error;
   return Boolean(data);
 }
 
 async function releaseBotLock(supabase: ReturnType<typeof getSupabaseAdmin>, token: string) {
-  await supabase.from("telegram_bot_lock").delete().eq("owner_token", token);
+  const { error } = await supabase.rpc("release_telegram_bot_lock", { p_owner_token: token });
+  if (error) console.error("Could not release Telegram bot lock", error);
 }
 
 async function main() {
