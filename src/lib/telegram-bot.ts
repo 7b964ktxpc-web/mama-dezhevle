@@ -13,12 +13,7 @@ async function telegramCall<T>(method: string, body: Record<string, unknown>): P
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Telegram API error ${response.status}: ${text}`);
-  }
-
+  if (!response.ok) throw new Error(`Telegram API error ${response.status}: ${await response.text()}`);
   const json = await response.json();
   if (!json.ok) throw new Error(`Telegram API error: ${JSON.stringify(json)}`);
   return json.result as T;
@@ -39,11 +34,7 @@ export type TelegramUpdate = {
 type TelegramFile = { file_path: string };
 
 export async function getTelegramUpdates(offset?: number) {
-  return telegramCall<TelegramUpdate[]>("getUpdates", {
-    offset,
-    timeout: 0,
-    allowed_updates: ["message"],
-  });
+  return telegramCall<TelegramUpdate[]>("getUpdates", { offset, timeout: 0, allowed_updates: ["message"] });
 }
 
 export async function getTelegramPhotoUrl(fileId: string) {
@@ -53,25 +44,12 @@ export async function getTelegramPhotoUrl(fileId: string) {
 }
 
 export async function sendTelegramBotMessage(chatId: number | string, text: string) {
-  return telegramCall("sendMessage", {
-    chat_id: chatId,
-    text,
-    disable_web_page_preview: false,
-  });
+  return telegramCall("sendMessage", { chat_id: chatId, text, disable_web_page_preview: false });
 }
 
 export function startText(firstName?: string) {
   const name = firstName ? `, ${firstName}` : "";
-  return [
-    `Привет${name}! 👋`,
-    "Я — бот «Мама, дешевле!».",
-    "",
-    "Напиши, что нужно найти. Например:",
-    "👕 рубашка мальчику 3 года до 1500 ₽",
-    "👟 кроссовки девочке 30 размера до 2500 ₽",
-    "",
-    "Или просто пришли 📸 фото — попробую определить товар и найти похожие варианты дешевле.",
-  ].join("\n");
+  return [`Привет${name}! 👋`, "Я — бот «Мама, дешевле!».", "", "Напиши, что нужно найти. Например:", "👕 рубашка мальчику 3 года до 1500 ₽", "👟 кроссовки девочке 30 размера до 2500 ₽", "", "Или просто пришли 📸 фото — попробую определить товар и найти похожие варианты дешевле."].join("\n");
 }
 
 export function normalizeSearchQuery(text: string) {
@@ -79,10 +57,5 @@ export function normalizeSearchQuery(text: string) {
 }
 
 export function searchReply(query: string) {
-  return [
-    "🔎 Запрос сохранён:",
-    `«${query}»`,
-    "",
-    "Когда каталог будет подключён, здесь появятся несколько самых выгодных вариантов.",
-  ].join("\n");
+  return ["🔎 Запрос сохранён:", `«${query}»`, "", "Когда каталог будет подключён, здесь появятся несколько самых выгодных вариантов."].join("\n");
 }
