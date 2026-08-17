@@ -24,11 +24,15 @@ jobs:
         with:
           node-version: 22.x
       - run: npm install --no-package-lock
+      - run: npm run typecheck
       - run: npm run build
       - run: npm run collect
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          CATALOG_YML_URL: ${{ secrets.CATALOG_YML_URL }}
+          CATALOG_YML_SOURCE: ${{ vars.CATALOG_YML_SOURCE }}
+          DETMIR_FIXTURE_ENABLED: "false"
 
   publish:
     needs: collect
