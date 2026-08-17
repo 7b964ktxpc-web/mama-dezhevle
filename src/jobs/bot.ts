@@ -11,7 +11,11 @@ function formatResults(results: Awaited<ReturnType<typeof searchProducts>>) {
 
 async function main() {
   const supabase = getSupabaseAdmin();
-  const updates = await getTelegramUpdates();
+  const { data: latestUpdate, error: latestUpdateError } = await supabase.from("telegram_bot_updates").select("update_id").order("update_id", { ascending: false }).limit(1).maybeSingle();
+  if (latestUpdateError) throw latestUpdateError;
+  const offset = latestUpdate ? Number(latestUpdate.update_id) + 1 : undefined;
+  const updates = await getTelegramUpdates(offset);
+
   for (const update of updates) {
     const message = update.message;
     if (!message?.chat?.id) continue;
