@@ -1,6 +1,5 @@
 import type { ProductSource } from "./source";
 import { collectDetmirPublic } from "./detmir-public";
-import { getDetmirFixture } from "./detmir-public";
 import { configuredYmlSources } from "./yml-feed";
 import { configuredPartnerSources } from "./partner-marketplaces";
 
@@ -21,15 +20,6 @@ export function enabledProductSources(): ProductSource[] {
       name: "Детский мир (public catalog)",
       isEnabled: () => true,
       collect: collectDetmirPublic,
-    });
-  }
-
-  if (process.env.DETMIR_FIXTURE_ENABLED === "true") {
-    configured.push({
-      id: "detmir-fixture",
-      name: "Детский мир (fixture)",
-      isEnabled: () => true,
-      collect: getDetmirFixture,
     });
   }
 
