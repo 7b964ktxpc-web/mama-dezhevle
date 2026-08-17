@@ -10,7 +10,8 @@
     "lint": "next lint",
     "collect": "tsx src/jobs/collect.ts",
     "evaluate": "tsx src/jobs/evaluate.ts",
-    "publish": "tsx src/jobs/publish.ts"
+    "publish": "tsx src/jobs/publish.ts",
+    "bot": "tsx src/jobs/bot.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "latest",
