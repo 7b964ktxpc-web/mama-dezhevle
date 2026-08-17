@@ -29,8 +29,8 @@ export type TelegramUpdate = {
 
 type TelegramFile = { file_path: string };
 
-export async function getTelegramUpdates(offset?: number) {
-  return telegramCall<TelegramUpdate[]>("getUpdates", { offset, timeout: 0, allowed_updates: ["message"] });
+export async function getTelegramUpdates(offset?: number, timeout = 25) {
+  return telegramCall<TelegramUpdate[]>("getUpdates", { offset, timeout, allowed_updates: ["message"] });
 }
 
 export async function getTelegramPhotoUrl(fileId: string) {
