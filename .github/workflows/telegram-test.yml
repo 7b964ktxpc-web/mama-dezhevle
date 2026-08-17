@@ -12,6 +12,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: mama-dezhevle-telegram-test
+  cancel-in-progress: false
+
 jobs:
   publish-test:
     runs-on: ubuntu-latest
