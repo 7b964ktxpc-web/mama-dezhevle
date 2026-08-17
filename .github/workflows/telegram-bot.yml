@@ -27,3 +27,5 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          CATALOG_YML_URL: ${{ secrets.CATALOG_YML_URL }}
+          CATALOG_YML_URLS: ${{ secrets.CATALOG_YML_URLS }}
