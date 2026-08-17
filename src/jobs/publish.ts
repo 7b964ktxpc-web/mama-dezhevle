@@ -1,0 +1,60 @@
+import { getSupabaseAdmin } from "../lib/supabase-admin";
+import { buildDealPost } from "../lib/post-template";
+import { sendTelegramPost } from "../lib/telegram";
+
+async function main() {
+  const supabase = getSupabaseAdmin();
+  const { data: deals, error } = await supabase
+    .from("deals")
+    .select("id, product_id, current_price, reference_price, discount_percent, deal_score, deal_level, ai_reason, products(title,url,rating,reviews_count,age_label)")
+    .eq("status", "candidate")
+    .gte("deal_score", 80)
+    .order("deal_score", { ascending: false })
+    .limit(3);
+
+  if (error) throw error;
+
+  for (const deal of deals ?? []) {
+    const product = Array.isArray(deal.products) ? deal.products[0] : deal.products;
+    if (!product) continue;
+
+    const text = buildDealPost(
+      {
+        title: product.title,
+        currentPrice: Number(deal.current_price),
+        referencePrice: Number(deal.reference_price),
+        rating: product.rating,
+        reviewsCount: product.reviews_count,
+        ageLabel: product.age_label,
+        url: product.url,
+      },
+      {
+        score: deal.deal_score,
+        level: deal.deal_level,
+        realDiscountPercent: Number(deal.discount_percent),
+        savingAmount: Math.max(0, Number(deal.reference_price) - Number(deal.current_price)),
+        reasons: deal.ai_reason ? [deal.ai_reason] : [],
+      },
+    );
+
+    const telegram = await sendTelegramPost(text);
+    const messageId = telegram?.result?.message_id ?? null;
+
+    await supabase.from("telegram_posts").upsert(
+      {
+        deal_id: deal.id,
+        telegram_message_id: messageId,
+        post_text: text,
+      },
+      { onConflict: "deal_id" },
+    );
+
+    await supabase.from("deals").update({ status: "published", published_at: new Date().toISOString() }).eq("id", deal.id);
+    console.log(`Published deal ${deal.id}`);
+  }
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
