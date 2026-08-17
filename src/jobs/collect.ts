@@ -38,9 +38,7 @@ async function main() {
         const { error: priceError } = await supabase.from("prices").insert({ product_id: saved.id, price: currentPrice, old_price: currentOldPrice });
         if (priceError) throw priceError;
         priceSnapshots += 1;
-        if (previousPrice !== null && currentPrice < previousPrice) {
-          alertsNotified += await notifyPriceAlerts(saved.id, currentPrice, product.title, product.url);
-        }
+        alertsNotified += await notifyPriceAlerts(saved.id, currentPrice, product.title, product.url);
       }
 
       const referencePrice = currentOldPrice ?? currentPrice;
