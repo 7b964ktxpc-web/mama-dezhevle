@@ -59,7 +59,7 @@ async function main() {
       if (text === "/watches") {
         const { data, error } = await supabase.from("telegram_price_alerts").select("product_id,target_price,products(title)").eq("telegram_user_id", userId).eq("active", true);
         if (error) throw error;
-        const watches = (data ?? []) as Array<{ product_id: string; target_price: number | null; products: { title: string } | null }>;
+        const watches = (data ?? []) as unknown as Array<{ product_id: string; target_price: number | null; products: { title: string } | null }>;
         await sendTelegramBotMessage(message.chat.id, watches.length ? ["🔔 Мои подписки:", "", ...watches.map((item) => `• ${item.products?.title ?? item.product_id}${item.target_price ? ` — до ${Math.round(Number(item.target_price))} ₽` : " — любое снижение"}`)].join("\n") : "🔕 Активных подписок нет.");
         continue;
       }
