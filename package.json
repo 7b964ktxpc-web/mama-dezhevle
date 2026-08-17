@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "typecheck": "tsx scripts/check-types.ts",
     "collect": "tsx src/jobs/collect.ts",
     "evaluate": "tsx src/jobs/evaluate.ts",
     "publish": "tsx src/jobs/publish.ts",
