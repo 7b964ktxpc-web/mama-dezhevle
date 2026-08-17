@@ -3,15 +3,14 @@ name: deal-preview
 on:
   workflow_dispatch:
   schedule:
-    - cron: "37 */3 * * *"
+    - cron: "27 */3 * * *"
 
 jobs:
   preview:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22.x
       - run: npm install --no-package-lock
