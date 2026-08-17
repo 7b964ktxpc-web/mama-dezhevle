@@ -1,0 +1,22 @@
+name: test-feed
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "src/lib/feeds/**"
+      - "src/jobs/test-feed.ts"
+      - "fixtures/catalog.yml"
+      - "package.json"
+      - ".github/workflows/test-feed.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm run test:feed
