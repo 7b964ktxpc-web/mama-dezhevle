@@ -11,31 +11,29 @@ on:
   schedule:
     - cron: "17 */3 * * *"
 
+permissions:
+  contents: read
+
 env:
   PREVIEW_ONLY: ${{ github.event_name == 'schedule' && 'true' || inputs.preview_only }}
+
+concurrency:
+  group: mama-dezhevle-deals
+  cancel-in-progress: false
 
 jobs:
   collect:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22.x
           cache: npm
       - run: npm install --no-package-lock
       - run: npm run typecheck
       - run: npm run build
-      - name: Report catalog source configuration
-        env:
-          CATALOG_YML_URL: ${{ secrets.CATALOG_YML_URL }}
-          CATALOG_YML_URLS: ${{ secrets.CATALOG_YML_URLS }}
-        run: |
-          echo "Detmir public catalog source is enabled"
-          if [ -n "$CATALOG_YML_URL" ] || [ -n "$CATALOG_YML_URLS" ]; then
-            echo "Legacy YML source is also configured"
-          fi
       - run: npm run collect
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -53,10 +51,10 @@ jobs:
   publish:
     needs: collect
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22.x
           cache: npm
