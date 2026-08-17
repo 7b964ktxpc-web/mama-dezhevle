@@ -1,22 +1,25 @@
 import type { ProductSource } from "./source";
 import { getDetmirFixture } from "./detmir-public";
-import { ymlFeedSource } from "./yml-feed";
+import { configuredYmlSources } from "./yml-feed";
 
 /**
  * Registry of permitted catalog sources.
- * Production sources must be explicitly configured through environment
- * variables. Fixtures are opt-in and never enabled implicitly in production.
+ * Production sources are configured explicitly through environment variables.
+ * Fixtures are opt-in and never enabled implicitly in production.
  */
-export const productSources: ProductSource[] = [
-  ymlFeedSource,
-  {
-    id: "detmir-fixture",
-    name: "Детский мир (fixture)",
-    isEnabled: () => process.env.DETMIR_FIXTURE_ENABLED === "true",
-    collect: getDetmirFixture,
-  },
-];
+export function enabledProductSources(): ProductSource[] {
+  const configured: ProductSource[] = [
+    ...configuredYmlSources(),
+  ];
 
-export function enabledProductSources() {
-  return productSources.filter((source) => source.isEnabled());
+  if (process.env.DETMIR_FIXTURE_ENABLED === "true") {
+    configured.push({
+      id: "detmir-fixture",
+      name: "Детский мир (fixture)",
+      isEnabled: () => true,
+      collect: getDetmirFixture,
+    });
+  }
+
+  return configured;
 }
