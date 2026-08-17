@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from "../lib/supabase-admin";
 import { buildDealPost } from "../lib/post-template";
 
-const MIN_SCORE = 80;
+const MIN_SCORE = 70;
 const MIN_REVIEWS = 10;
 const MIN_DISCOUNT = 20;
 const MAX_DISCOUNT = 99.9;
@@ -22,7 +22,8 @@ async function main() {
   const supabase = getSupabaseAdmin();
   const { data: deals, error } = await supabase.from("deals")
     .select("id,current_price,reference_price,discount_percent,deal_score,deal_level,ai_reason,products(title,url,rating,reviews_count,age_label,source,available)")
-    .eq("status", "candidate").order("deal_score", { ascending: false }).limit(10);
+    .eq("status", "candidate").gte("deal_score", MIN_SCORE)
+    .order("deal_score", { ascending: false }).limit(10);
   if (error) throw error;
 
   const rows = (deals ?? []).flatMap((deal: any) => {
