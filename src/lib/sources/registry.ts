@@ -1,6 +1,7 @@
 import type { ProductSource } from "./source";
 import { getDetmirFixture } from "./detmir-public";
 import { configuredYmlSources } from "./yml-feed";
+import { yandexMarketSource } from "./yandex-market";
 
 /**
  * Registry of permitted catalog sources.
@@ -11,6 +12,10 @@ export function enabledProductSources(): ProductSource[] {
   const configured: ProductSource[] = [
     ...configuredYmlSources(),
   ];
+
+  if (yandexMarketSource.isEnabled()) {
+    configured.push(yandexMarketSource);
+  }
 
   if (process.env.DETMIR_FIXTURE_ENABLED === "true") {
     configured.push({
