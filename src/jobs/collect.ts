@@ -1,10 +1,10 @@
-import { getDemoProducts } from "../lib/sources/demo";
 import { calculateDealScore } from "../lib/deal-score";
 import { getSupabaseAdmin } from "../lib/supabase-admin";
+import { getDetmirFixture } from "../lib/sources/detmir-public";
 
 async function main() {
   const supabase = getSupabaseAdmin();
-  const products = getDemoProducts();
+  const products = getDetmirFixture();
 
   for (const product of products) {
     const { data: saved, error: productError } = await supabase
@@ -29,13 +29,16 @@ async function main() {
       .select("id")
       .single();
 
-    if (productError || !saved) throw productError ?? new Error("Product was not saved");
+    if (productError || !saved) {
+      throw productError ?? new Error(`Product was not saved: ${product.externalId}`);
+    }
 
-    await supabase.from("prices").insert({
+    const { error: priceError } = await supabase.from("prices").insert({
       product_id: saved.id,
       price: product.price,
       old_price: product.oldPrice ?? null,
     });
+    if (priceError) throw priceError;
 
     const referencePrice = product.oldPrice ?? product.price;
     const deal = calculateDealScore({
@@ -60,10 +63,17 @@ async function main() {
       if (dealError) throw dealError;
     }
 
-    console.log(`${product.title}: score=${deal.score}, level=${deal.level}`);
+    console.log(JSON.stringify({
+      source: product.source,
+      title: product.title,
+      price: product.price,
+      oldPrice: product.oldPrice,
+      score: deal.score,
+      level: deal.level,
+    }));
   }
 
-  console.log(`Collected ${products.length} products.`);
+  console.log(`Collected ${products.length} Detmir fixture products.`);
 }
 
 main().catch((error) => {
