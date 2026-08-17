@@ -11,10 +11,12 @@
     "collect": "tsx src/jobs/collect.ts",
     "evaluate": "tsx src/jobs/evaluate.ts",
     "publish": "tsx src/jobs/publish.ts",
-    "bot": "tsx src/jobs/bot.ts"
+    "bot": "tsx src/jobs/bot.ts",
+    "test:feed": "tsx src/jobs/test-feed.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "latest",
+    "fast-xml-parser": "latest",
     "next": "latest",
     "react": "latest",
     "react-dom": "latest"
