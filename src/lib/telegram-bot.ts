@@ -29,10 +29,14 @@ export type TelegramUpdate = {
   message?: {
     message_id: number;
     text?: string;
+    caption?: string;
+    photo?: Array<{ file_id: string; width: number; height: number; file_size?: number }>;
     chat: { id: number; type: string };
     from?: { id: number; first_name?: string; username?: string };
   };
 };
+
+type TelegramFile = { file_path: string };
 
 export async function getTelegramUpdates(offset?: number) {
   return telegramCall<TelegramUpdate[]>("getUpdates", {
@@ -40,6 +44,12 @@ export async function getTelegramUpdates(offset?: number) {
     timeout: 0,
     allowed_updates: ["message"],
   });
+}
+
+export async function getTelegramPhotoUrl(fileId: string) {
+  const file = await telegramCall<TelegramFile>("getFile", { file_id: fileId });
+  const token = requireEnv("TELEGRAM_BOT_TOKEN");
+  return `https://api.telegram.org/file/bot${token}/${file.file_path}`;
 }
 
 export async function sendTelegramBotMessage(chatId: number | string, text: string) {
@@ -60,7 +70,7 @@ export function startText(firstName?: string) {
     "👕 рубашка мальчику 3 года до 1500 ₽",
     "👟 кроссовки девочке 30 размера до 2500 ₽",
     "",
-    "Сейчас я сохраняю твой запрос. Поиск по каталогу подключим следующим этапом.",
+    "Или просто пришли 📸 фото — попробую определить товар и найти похожие варианты дешевле.",
   ].join("\n");
 }
 
