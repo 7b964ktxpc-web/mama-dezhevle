@@ -3,8 +3,12 @@ import { getSupabaseAdmin } from "../lib/supabase-admin";
 
 async function main() {
   const supabase = getSupabaseAdmin();
-  const { data: product, error } = await supabase.from("products").select("id,title,url").limit(1).single();
-  if (error || !product) throw error ?? new Error("No product available for price-alert test");
+  const { data: product, error } = await supabase.from("products").select("id,title,url").limit(1).maybeSingle();
+  if (error) throw error;
+  if (!product) {
+    console.log(JSON.stringify({ skipped: true, reason: "No product available for price-alert test" }));
+    return;
+  }
 
   if (!process.env.TEST_TELEGRAM_CHAT_ID) {
     console.log(JSON.stringify({ skipped: true, reason: "TEST_TELEGRAM_CHAT_ID is not configured" }));
