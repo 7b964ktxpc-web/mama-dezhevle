@@ -76,24 +76,58 @@ function collectJsonLd(html: string): DetmirListing[] {
   return listings;
 }
 
+function extractPrices(text: string): number[] {
+  const matches = text.match(/\d[\d\s\u00a0\u202f.,]*\s*₽/g) ?? [];
+  const values: number[] = [];
+  for (const match of matches) {
+    const value = asNumber(match);
+    if (value && !values.includes(value)) values.push(value);
+  }
+  return values;
+}
+
 function collectListingHtml(html: string): DetmirListing[] {
   const listings: DetmirListing[] = [];
-  const pattern = /(?:−|-)\s*(\d+)\s*%[\s\S]{0,700}?([0-9][0-9\s\u00a0\u202f.,]*\s*₽)[\s\S]{0,80}?([0-9][0-9\s\u00a0\u202f.,]*\s*₽)[\s\S]{0,1200}?href=["']((?:https?:\/\/www\.detmir\.ru)?\/product\/index\/id\/\d+\/)["'][^>]*>([\s\S]{1,500}?)<\/a>/gi;
+  const productHref = /href\s*=\s*["']([^"']*\/product\/[^"']+)["']/gi;
 
-  for (const match of html.matchAll(pattern)) {
-    const discount = Number(match[1]);
-    const price = asNumber(match[2]);
-    const oldPrice = asNumber(match[3]);
-    const href = match[4];
-    const title = stripTags(match[5]);
-    if (!price || !oldPrice || !href || !title || !Number.isFinite(discount)) continue;
+  for (const match of html.matchAll(productHref)) {
+    const href = match[1];
+    const position = match.index ?? 0;
+    const before = stripTags(html.slice(Math.max(0, position - 2600), position));
+    const after = stripTags(html.slice(position, Math.min(html.length, position + 1600)));
+
+    const discountMatches = [...before.matchAll(/(?:−|-)\s*(\d{1,3})\s*%/g)];
+    const discount = discountMatches.length ? Number(discountMatches.at(-1)?.[1]) : null;
+    const prices = extractPrices(before).slice(-4);
+    const titleCandidates = [
+      stripTags(after.replace(/^href\s*=\s*["'][^"']+["']/i, "").slice(0, 600)),
+      stripTags(html.slice(position, Math.min(html.length, position + 900))),
+    ];
+    const title = titleCandidates
+      .map((value) => value.replace(/^\s*[>\-:]+\s*/, "").trim())
+      .find((value) => value.length >= 8 && !/^\d[\d\s.,]*₽/.test(value));
+
+    if (!href || !title || !prices.length || !discount || !Number.isFinite(discount)) continue;
+
+    const currentPrice = prices.at(-2) ?? prices.at(-1) ?? null;
+    const oldPrice = prices.at(-1) ?? null;
+    if (!currentPrice || !oldPrice || oldPrice <= currentPrice) continue;
+
     const url = href.startsWith("http") ? href : new URL(href, detmirSourceUrl()).toString();
+    const cleanTitle = title
+      .replace(/^(В избранное|В корзину)\s*/i, "")
+      .replace(/\s+(В избранное|В корзину).*$/i, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (cleanTitle.length < 8) continue;
+
     listings.push({
       externalId: `detmir:${url}`,
-      title,
+      title: cleanTitle,
       url,
-      price,
-      oldPrice: oldPrice > price ? oldPrice : null,
+      price: currentPrice,
+      oldPrice,
       rating: null,
       imageUrl: null,
       category: "Детские товары",
@@ -139,3 +173,4 @@ export async function collectDetmirPublic(): Promise<Product[]> {
   if (products.length === 0) throw new Error("Detmir public catalog returned no product entries");
   return products;
 }
+
