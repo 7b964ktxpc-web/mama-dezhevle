@@ -8,17 +8,19 @@ async function main() {
   const supabase = getSupabaseAdmin();
   const { data: deals, error } = await supabase
     .from("deals")
-    .select("id, product_id, current_price, reference_price, discount_percent, deal_score, deal_level, ai_reason, products(title,url,rating,reviews_count,age_label)")
+    .select("id, product_id, current_price, reference_price, discount_percent, deal_score, deal_level, ai_reason, products(title,url,rating,reviews_count,age_label,source,available)")
     .eq("status", "candidate")
     .gte("deal_score", 80)
     .order("deal_score", { ascending: false })
-    .limit(3);
+    .limit(10);
 
   if (error) throw error;
 
+  let prepared = 0;
   for (const deal of deals ?? []) {
     const product = Array.isArray(deal.products) ? deal.products[0] : deal.products;
     if (!product) continue;
+    if ((product.reviews_count ?? 0) < 10 || product.available === false) continue;
 
     const text = buildDealPost(
       {
@@ -29,6 +31,7 @@ async function main() {
         reviewsCount: product.reviews_count,
         ageLabel: product.age_label,
         url: product.url,
+        source: product.source,
       },
       {
         score: deal.deal_score,
@@ -39,6 +42,7 @@ async function main() {
       },
     );
 
+    prepared += 1;
     if (previewOnly) {
       console.log(`PREVIEW deal ${deal.id}:`);
       console.log(text);
@@ -47,23 +51,18 @@ async function main() {
 
     const telegram = await sendTelegramPost(text);
     const messageId = telegram?.result?.message_id ?? null;
-
     await supabase.from("telegram_posts").upsert(
-      {
-        deal_id: deal.id,
-        telegram_message_id: messageId,
-        post_text: text,
-      },
+      { deal_id: deal.id, telegram_message_id: messageId, post_text: text },
       { onConflict: "deal_id" },
     );
-
     await supabase
       .from("deals")
       .update({ status: "published", published_at: new Date().toISOString() })
       .eq("id", deal.id);
-
     console.log(`Published deal ${deal.id}`);
   }
+
+  console.log(JSON.stringify({ prepared, previewOnly }));
 }
 
 main().catch((error) => {
