@@ -5,3 +5,5 @@ export * from "./normalize";
 export * from "./price";
 export * from "./quality";
 export * from "./catalog";
+export * from "./fingerprint";
+export * from "./metrics";
