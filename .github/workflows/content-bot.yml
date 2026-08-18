@@ -2,9 +2,6 @@ name: content-bot
 
 on:
   workflow_dispatch:
-  schedule:
-    # Poll Telegram frequently enough for approval buttons to feel live.
-    - cron: "*/5 * * * *"
 
 concurrency:
   group: mama-dezhevle-content-bot
@@ -35,4 +32,4 @@ jobs:
           CONTENT_AI_MODEL: ${{ secrets.CONTENT_AI_MODEL }}
           GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
           AI_MODEL: ${{ secrets.AI_MODEL }}
-          CONTENT_AUTO_GENERATE: "true"
+          CONTENT_AUTO_GENERATE: "false"
