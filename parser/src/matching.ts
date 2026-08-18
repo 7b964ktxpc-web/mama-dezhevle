@@ -1,4 +1,5 @@
 import type { ParsedProduct } from "./types";
+import { normalizeProduct } from "./normalize";
 
 export interface ProductIdentity {
   brand?: string;
@@ -14,7 +15,7 @@ const STOP_WORDS = new Set([
 ]);
 
 function normalizeText(value: string): string {
-  return value.toLowerCase().replace(/ё/g, "е").replace(/&amp;/g, " ").replace(/[^a-zа-я0-9%./-]+/gi, " ").replace(/\s+/g, " ").trim();
+  return value.toLowerCase().replace(/ё/g, "е").replace(/№/g, " ").replace(/&amp;/g, " ").replace(/[^a-zа-я0-9%./-]+/gi, " ").replace(/\s+/g, " ").trim();
 }
 
 function tokens(value: string): string[] {
@@ -23,8 +24,10 @@ function tokens(value: string): string[] {
 
 export function extractIdentity(product: Pick<ParsedProduct, "title" | "brand">): ProductIdentity {
   const title = normalizeText(product.title);
-  const quantity = title.match(/\b(\d+(?:[.,]\d+)?)\s*(шт|штук|ml|мл|l|л|kg|кг|g|гр|г)\b/i)?.[0];
-  const size = title.match(/\b(?:размер|size)\s*([0-9a-zа-я+-]+)\b/i)?.[1];
+  const normalized = normalizeProduct(product as ParsedProduct);
+  const quantity = normalized.packCount !== undefined ? `${normalized.packCount} шт` : title.match(/\b(\d+(?:[.,]\d+)?)\s*(шт|штук)\b/i)?.[0];
+  const size = title.match(/\b(?:размер|size)\s*([0-9a-zа-я+-]+)\b/i)?.[1]
+    ?? title.match(/\b(?:размер\s*)?(?:№\s*)?(\d+)\b(?=\s*(?:шт|штук|$))/i)?.[1];
   const model = title.match(/\b([a-z]{1,8}[ -]?[a-z0-9]{1,12}\d+[a-z0-9-]*)\b/i)?.[1];
   return {
     brand: product.brand ? normalizeText(product.brand) : undefined,
@@ -45,14 +48,19 @@ function jaccard(a: string[], b: string[]): number {
 export function productSimilarity(a: ParsedProduct, b: ParsedProduct): number {
   const aTokens = tokens(`${a.brand ?? ""} ${a.title}`);
   const bTokens = tokens(`${b.brand ?? ""} ${b.title}`);
-  let score = jaccard(aTokens, bTokens);
-
   const ai = extractIdentity(a);
   const bi = extractIdentity(b);
-  if (ai.brand && bi.brand) score += ai.brand === bi.brand ? 0.18 : -0.35;
-  if (ai.model && bi.model) score += ai.model === bi.model ? 0.25 : -0.25;
-  if (ai.size && bi.size) score += ai.size === bi.size ? 0.10 : -0.15;
-  if (ai.quantity && bi.quantity) score += ai.quantity === bi.quantity ? 0.15 : -0.18;
+
+  if (ai.brand && bi.brand && ai.brand !== bi.brand) return 0;
+  if (ai.quantity && bi.quantity && ai.quantity !== bi.quantity) return 0;
+  if (ai.size && bi.size && ai.size !== bi.size) return 0;
+  if (ai.model && bi.model && ai.model !== bi.model) return 0;
+
+  let score = jaccard(aTokens, bTokens);
+  if (ai.brand && bi.brand) score += 0.18;
+  if (ai.model && bi.model) score += 0.25;
+  if (ai.size && bi.size) score += 0.10;
+  if (ai.quantity && bi.quantity) score += 0.15;
 
   return Math.max(0, Math.min(1, score));
 }
