@@ -5,7 +5,9 @@ export interface ExtractedProduct {
   title?: string;
   brand?: string;
   price?: number;
+  oldPrice?: number;
   currency?: string;
+  available?: boolean;
   url?: string;
   source: "jsonld" | "fallback";
 }
