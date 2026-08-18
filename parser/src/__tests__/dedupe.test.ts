@@ -1,7 +1,7 @@
 import { dedupeProducts } from "../dedupe";
-import type { ParsedProduct } from "../types";
+import type { Marketplace, ParsedProduct } from "../types";
 
-const product = (marketplace: string, externalId: string, title: string): ParsedProduct => ({ marketplace, externalId, title, brand: "Pampers", url: `https://${marketplace}.example/item/${externalId}`, price: 100, currency: "RUB", sourceUrl: `https://${marketplace}.example`, collectedAt: new Date().toISOString() });
+const product = (marketplace: Marketplace, externalId: string, title: string): ParsedProduct => ({ marketplace, externalId, title, brand: "Pampers", url: `https://${marketplace}.example/item/${externalId}`, price: 100, currency: "RUB", sourceUrl: `https://${marketplace}.example`, collectedAt: new Date().toISOString() });
 
 describe("dedupeProducts", () => {
   it("removes the same marketplace item twice", () => {
