@@ -1,6 +1,7 @@
 import { adapterFor } from "./adapters";
 import { fetchPublicPage } from "./http";
 import { checkRobots } from "./robots";
+import { groupSimilarProducts } from "./matching";
 import type { ParsedProduct, ParserOptions } from "./types";
 
 const DEFAULTS: Required<ParserOptions> = {
@@ -40,16 +41,9 @@ export class MarketplaceParser {
     if (url.protocol !== "https:") throw new Error("Only HTTPS marketplace URLs are supported");
     const adapter = adapterFor(url);
     if (!adapter) throw new Error(`Unsupported marketplace host: ${url.hostname}`);
-
     const robots = await checkRobots(url, this.options.userAgent);
     if (!robots.allowed) throw new Error(`Blocked by robots.txt rule: ${robots.matchedRule}`);
-
-    const result = await fetchPublicPage(url, {
-      timeoutMs: this.options.timeoutMs,
-      retries: 2,
-      baseDelayMs: 400,
-      userAgent: this.options.userAgent,
-    });
+    const result = await fetchPublicPage(url, { timeoutMs: this.options.timeoutMs, retries: 2, baseDelayMs: 400, userAgent: this.options.userAgent });
     return adapter.parse(url, result.html, this.options);
   }
 }
@@ -65,22 +59,14 @@ function dedupe(products: ParsedProduct[]): ParsedProduct[] {
 }
 
 export function comparePrices(products: ParsedProduct[]) {
-  const groups = new Map<string, ParsedProduct[]>();
-  for (const product of products) {
-    const key = `${product.brand ?? ""} ${product.title}`.toLowerCase().replace(/ё/g, "е").replace(/[^a-zа-я0-9]+/gi, " ").replace(/\s+/g, " ").trim();
-    const group = groups.get(key) ?? [];
-    group.push(product);
-    groups.set(key, group);
-  }
-
-  return [...groups.entries()].map(([key, offers]) => {
+  return groupSimilarProducts(products).map(({ canonical, offers }) => {
     const sorted = [...offers].sort((a, b) => a.price - b.price);
     const cheapest = sorted[0];
     const highest = sorted[sorted.length - 1];
     return {
-      key,
-      title: cheapest.title,
-      brand: cheapest.brand,
+      key: `${canonical.brand ?? ""} ${canonical.title}`.trim(),
+      title: canonical.title,
+      brand: canonical.brand,
       offers: sorted,
       cheapest,
       savings: highest ? Math.max(0, highest.price - cheapest.price) : 0,
