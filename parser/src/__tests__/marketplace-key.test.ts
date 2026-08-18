@@ -1,8 +1,10 @@
 import { marketplaceProductKey } from "../marketplace-key";
+import type { Marketplace } from "../types";
 
 describe("marketplaceProductKey", () => {
   it("keeps marketplace ids exact", () => {
-    const key = marketplaceProductKey({ marketplace: "Ozon", externalId: "ABC-123", title: "Test", brand: "Brand" });
+    const marketplace: Marketplace = "ozon";
+    const key = marketplaceProductKey({ marketplace, externalId: "ABC-123", title: "Test", brand: "Brand" });
     expect(key.exact).toBe("ozon:abc-123");
   });
   it("builds a cross-market canonical key", () => {
