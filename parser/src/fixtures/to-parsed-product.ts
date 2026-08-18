@@ -1,8 +1,17 @@
 import type { ParsedProduct } from "../types";
-import type { FixtureProduct } from "./parse-fixture";
 import { normalizeOffer } from "../offer-normalize";
 
-export function fixtureToParsedProduct(input: FixtureProduct, marketplace: string, externalId: string, sourceUrl: string): ParsedProduct {
+export interface ProductLike {
+  title: string;
+  brand?: string;
+  price: number;
+  oldPrice?: number;
+  currency?: string;
+  available?: boolean;
+  url?: string;
+}
+
+export function fixtureToParsedProduct(input: ProductLike, marketplace: string, externalId: string, sourceUrl: string): ParsedProduct {
   const offer = normalizeOffer({ price: input.price, oldPrice: input.oldPrice, availability: input.available });
   return {
     marketplace: marketplace as ParsedProduct["marketplace"],
@@ -12,7 +21,7 @@ export function fixtureToParsedProduct(input: FixtureProduct, marketplace: strin
     price: offer.price ?? input.price,
     oldPrice: offer.oldPrice,
     available: offer.availability,
-    currency: input.currency,
+    currency: input.currency ?? "RUB",
     url: input.url ?? sourceUrl,
     sourceUrl,
     collectedAt: new Date().toISOString(),
