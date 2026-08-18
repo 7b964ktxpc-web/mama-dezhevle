@@ -3,7 +3,8 @@ name: content-bot
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 */8 * * *"
+    # Poll Telegram frequently enough for approval buttons to feel live.
+    - cron: "*/5 * * * *"
 
 concurrency:
   group: mama-dezhevle-content-bot
