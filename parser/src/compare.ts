@@ -1,7 +1,7 @@
 import { comparePrices } from "./engine";
-import type { ParsedProduct } from "./types";
+import type { Marketplace, ParsedProduct } from "./types";
 
-const product = (marketplace: string, id: string, title: string, price: number): ParsedProduct => ({ marketplace, externalId: id, title, brand: "Pampers", url: `https://${marketplace}.example/${id}`, price, currency: "RUB", sourceUrl: `https://${marketplace}.example`, collectedAt: new Date().toISOString() });
+const product = (marketplace: Marketplace, id: string, title: string, price: number): ParsedProduct => ({ marketplace, externalId: id, title, brand: "Pampers", url: `https://${marketplace}.example/${id}`, price, currency: "RUB", sourceUrl: `https://${marketplace}.example`, collectedAt: new Date().toISOString() });
 
 export function comparePriceRegressionCases() {
   return {
