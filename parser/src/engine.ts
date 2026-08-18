@@ -2,6 +2,7 @@ import { adapterFor } from "./adapters";
 import { fetchPublicPage } from "./http";
 import { checkRobots } from "./robots";
 import { groupSimilarProducts } from "./matching";
+import { filterChildProducts } from "./children";
 import type { ParsedProduct, ParserOptions } from "./types";
 
 const DEFAULTS: Required<ParserOptions> = {
@@ -9,6 +10,7 @@ const DEFAULTS: Required<ParserOptions> = {
   concurrency: 3,
   userAgent: "Mozilla/5.0 (compatible; MamaDezhevleParser/0.1)",
   maxProductsPerPage: 100,
+  childrenOnly: true,
 };
 
 export class MarketplaceParser {
@@ -44,7 +46,8 @@ export class MarketplaceParser {
     const robots = await checkRobots(url, this.options.userAgent);
     if (!robots.allowed) throw new Error(`Blocked by robots.txt rule: ${robots.matchedRule}`);
     const result = await fetchPublicPage(url, { timeoutMs: this.options.timeoutMs, retries: 2, baseDelayMs: 400, userAgent: this.options.userAgent });
-    return adapter.parse(url, result.html, this.options);
+    const products = adapter.parse(url, result.html, this.options);
+    return this.options.childrenOnly ? filterChildProducts(products) : products;
   }
 }
 
