@@ -40,10 +40,13 @@ function parseReview(text: string): AiDealReview {
  * If the provider is not configured or fails, deterministic scoring remains the source of truth.
  */
 export async function reviewDealWithAi(product: Product, deal: DealResult): Promise<AiDealReview | null> {
-  const apiKey = getEnv("GEMINI_API_KEY");
+  const provider = getEnv("AI_PROVIDER");
+  if (provider && provider !== "gemini") return null;
+
+  const apiKey = getEnv("GEMINI_API_KEY") || getEnv("AI_API_KEY");
   if (!apiKey) return null;
 
-  const model = getEnv("GEMINI_MODEL") || DEFAULT_MODEL;
+  const model = getEnv("GEMINI_MODEL") || getEnv("AI_MODEL") || DEFAULT_MODEL;
   const prompt = [
     "Ты редактор сервиса «Мама, дешевле!». Оцени качество уже рассчитанной сделки.",
     "Нельзя придумывать или менять цену, скидку, наличие, рейтинг или ссылку.",
