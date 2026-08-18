@@ -23,6 +23,8 @@ export interface ParserOptions {
   concurrency?: number;
   userAgent?: string;
   maxProductsPerPage?: number;
+  /** Search for children/teen products only. Enabled by default. */
+  childrenOnly?: boolean;
 }
 
 export interface MarketplaceAdapter {
