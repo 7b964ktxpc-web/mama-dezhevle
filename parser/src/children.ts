@@ -24,7 +24,7 @@ function ageFromText(text: string): { min?: number; max?: number } {
   if (range) return { min: Number(range[1]), max: Number(range[2]) };
   const under = text.match(/(?:до|under)\s*(\d+)\s*(лет|год|года|мес|месяц)/i);
   if (under) return { max: Number(under[1]) };
-  const from = text.match(/(?:от|from)\s*(\d+)\s*(лет|год|года|мес|месяц)/i);
+  const from = text.match(/(?:от|from)\s*(\d+)\s*(лет|год|года|месяц|месяцев)/i);
   if (from) return { min: Number(from[1]) };
   const months = text.match(/\b(\d+)\s*(мес|месяц|месяцев)\b/i);
   if (months) return { max: Math.ceil(Number(months[1]) / 12) };
@@ -51,13 +51,16 @@ export function classifyChildProduct(product: Pick<ParsedProduct, "title" | "cat
   if (positive) reasons.push("child-product keyword");
   if (age.min !== undefined || age.max !== undefined) reasons.push("explicit age marker");
 
-  const isChildProduct = positive || (age.max !== undefined && age.max <= 18) || (age.min !== undefined && age.min <= 18);
+  const explicitAgeOutsideRange = (age.max !== undefined && age.max > 18) || (age.min !== undefined && age.min > 18);
+  const hasExplicitChildAge = (age.max !== undefined && age.max <= 18) || (age.min !== undefined && age.min <= 18);
+  const isChildProduct = explicitAgeOutsideRange ? false : positive || hasExplicitChildAge;
+
   return {
     isChildProduct,
     ageMin: age.min,
-    ageMax: age.max === undefined ? undefined : Math.min(age.max, 18),
+    ageMax: age.max,
     ageBand: band(age.min, age.max),
-    confidence: isChildProduct ? (age.min !== undefined || age.max !== undefined ? 0.98 : 0.82) : 0.05,
+    confidence: isChildProduct ? (age.min !== undefined || age.max !== undefined ? 0.98 : 0.82) : (explicitAgeOutsideRange ? 0.98 : 0.05),
     reasons,
   };
 }
