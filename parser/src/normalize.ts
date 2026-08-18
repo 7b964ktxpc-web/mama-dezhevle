@@ -7,6 +7,8 @@ export interface NormalizedProduct extends ParsedProduct {
   weightGrams?: number;
   volumeMl?: number;
   sizeLabel?: string;
+  unitPrice?: number;
+  unitBasis?: "item" | "kg" | "100g" | "l" | "100ml";
 }
 
 const NOISE_WORDS = new Set(["купить", "доставка", "скидка", "цена", "руб", "рублей", "упаковка"]);
@@ -36,6 +38,19 @@ export function normalizeProduct(product: ParsedProduct): NormalizedProduct {
     volumeMl = /л|l/i.test(volumeMatch[2]) ? value * 1000 : value;
   }
 
+  let unitPrice: number | undefined;
+  let unitBasis: NormalizedProduct["unitBasis"];
+  if (packMatch && Number(packMatch[1]) > 0) {
+    unitPrice = product.price / Number(packMatch[1]);
+    unitBasis = "item";
+  } else if (weightGrams && weightGrams > 0) {
+    unitPrice = product.price / (weightGrams / 1000);
+    unitBasis = "kg";
+  } else if (volumeMl && volumeMl > 0) {
+    unitPrice = product.price / (volumeMl / 1000);
+    unitBasis = "l";
+  }
+
   return {
     ...product,
     normalizedTitle: title,
@@ -44,6 +59,8 @@ export function normalizeProduct(product: ParsedProduct): NormalizedProduct {
     weightGrams,
     volumeMl,
     sizeLabel: sizeMatch?.[1],
+    unitPrice: unitPrice !== undefined ? Number(unitPrice.toFixed(2)) : undefined,
+    unitBasis,
   };
 }
 
