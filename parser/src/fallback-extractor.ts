@@ -18,7 +18,7 @@ function toNumber(value: string | undefined): number | undefined {
 
 function priceFromText(value: string): number | undefined {
   const normalized = value.replace(/\u00a0/g, " ").replace(/\s+/g, " ");
-  const match = normalized.match(/(\d{1,3}(?:[ \u00a0.]\d{3})*(?:,\d{1,2})?)\s*(?:₽|руб(?:\.|лей)?|RUB)\b?/i);
+  const match = normalized.match(/(\d{1,3}(?:[ \u00a0.]\d{3})*(?:,\d{1,2})?)\s*(?:₽|руб(?:\.|лей)?|RUB)/i);
   return match ? toNumber(match[1]) : undefined;
 }
 
