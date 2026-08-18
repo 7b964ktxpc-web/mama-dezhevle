@@ -1,10 +1,12 @@
 import { adapterFor } from "./adapters";
+import { fetchPublicPage } from "./http";
+import { checkRobots } from "./robots";
 import type { ParsedProduct, ParserOptions } from "./types";
 
 const DEFAULTS: Required<ParserOptions> = {
   timeoutMs: 15000,
   concurrency: 3,
-  userAgent: "Mozilla/5.0 (compatible; MamaDezhevleParser/0.1; +https://mama-dezhevle.example)",
+  userAgent: "Mozilla/5.0 (compatible; MamaDezhevleParser/0.1)",
   maxProductsPerPage: 100,
 };
 
@@ -39,28 +41,16 @@ export class MarketplaceParser {
     const adapter = adapterFor(url);
     if (!adapter) throw new Error(`Unsupported marketplace host: ${url.hostname}`);
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.options.timeoutMs);
-    try {
-      const response = await fetch(url, {
-        signal: controller.signal,
-        cache: "no-store",
-        headers: {
-          "user-agent": this.options.userAgent,
-          accept: "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
-          "accept-language": "ru-RU,ru;q=0.9,en;q=0.7",
-        },
-      });
-      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-      const contentType = response.headers.get("content-type") ?? "";
-      if (!contentType.includes("text/html") && !contentType.includes("application/xhtml+xml")) {
-        throw new Error(`Unsupported response content-type: ${contentType}`);
-      }
-      const html = await response.text();
-      return adapter.parse(url, html, this.options);
-    } finally {
-      clearTimeout(timer);
-    }
+    const robots = await checkRobots(url, this.options.userAgent);
+    if (!robots.allowed) throw new Error(`Blocked by robots.txt rule: ${robots.matchedRule}`);
+
+    const result = await fetchPublicPage(url, {
+      timeoutMs: this.options.timeoutMs,
+      retries: 2,
+      baseDelayMs: 400,
+      userAgent: this.options.userAgent,
+    });
+    return adapter.parse(url, result.html, this.options);
   }
 }
 
@@ -77,7 +67,7 @@ function dedupe(products: ParsedProduct[]): ParsedProduct[] {
 export function comparePrices(products: ParsedProduct[]) {
   const groups = new Map<string, ParsedProduct[]>();
   for (const product of products) {
-    const key = normalizeProductKey(product.title, product.brand);
+    const key = `${product.brand ?? ""} ${product.title}`.toLowerCase().replace(/ё/g, "е").replace(/[^a-zа-я0-9]+/gi, " ").replace(/\s+/g, " ").trim();
     const group = groups.get(key) ?? [];
     group.push(product);
     groups.set(key, group);
@@ -97,14 +87,4 @@ export function comparePrices(products: ParsedProduct[]) {
       marketplaceCount: new Set(sorted.map((item) => item.marketplace)).size,
     };
   });
-}
-
-function normalizeProductKey(title: string, brand?: string): string {
-  return `${brand ?? ""} ${title}`
-    .toLowerCase()
-    .replace(/ё/g, "е")
-    .replace(/[^a-zа-я0-9]+/gi, " ")
-    .replace(/\b(купить|доставка|скидка|цена|руб|₽)\b/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 }
