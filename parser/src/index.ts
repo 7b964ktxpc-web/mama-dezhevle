@@ -11,3 +11,6 @@ export * from "./children";
 export * from "./children-categories";
 export * from "./child-profile";
 export * from "./age-signals";
+export * from "./child-profile-v2";
+export * from "./marketplace-key";
+export * from "./dedupe";
