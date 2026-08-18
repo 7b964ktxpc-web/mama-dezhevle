@@ -3,6 +3,17 @@ const MAX_MESSAGE_LENGTH = 4096;
 const REQUEST_TIMEOUT_MS = 15_000;
 const MAX_RETRIES = 3;
 
+type TelegramMessage = {
+  message_id: number;
+  [key: string]: unknown;
+};
+
+type TelegramResponse = {
+  ok: boolean;
+  result?: TelegramMessage;
+  [key: string]: unknown;
+};
+
 function requireEnv(name: string) {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`Missing environment variable: ${name}`);
@@ -23,7 +34,7 @@ function splitMessage(text: string) {
   return chunks;
 }
 
-async function sendOne(token: string, chatId: string, text: string) {
+async function sendOne(token: string, chatId: string, text: string): Promise<TelegramResponse> {
   let lastError = "";
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
     const controller = new AbortController();
@@ -42,9 +53,8 @@ async function sendOne(token: string, chatId: string, text: string) {
       });
 
       const body = await response.text();
-      if (response.ok) return JSON.parse(body);
+      if (response.ok) return JSON.parse(body) as TelegramResponse;
 
-      // Markdown parsing errors should never prevent a valid deal from being sent.
       if (response.status === 400 && /parse entities|can't parse/i.test(body)) {
         const fallback = await fetch(`${API}${token}/sendMessage`, {
           method: "POST",
@@ -53,7 +63,7 @@ async function sendOne(token: string, chatId: string, text: string) {
           signal: controller.signal,
         });
         const fallbackBody = await fallback.text();
-        if (fallback.ok) return JSON.parse(fallbackBody);
+        if (fallback.ok) return JSON.parse(fallbackBody) as TelegramResponse;
         lastError = `Telegram fallback error ${fallback.status}: ${fallbackBody}`;
         break;
       }
@@ -76,7 +86,16 @@ export async function sendTelegramPost(text: string) {
   const token = requireEnv("TELEGRAM_BOT_TOKEN");
   const chatId = requireEnv("TELEGRAM_CHANNEL_ID");
   const chunks = splitMessage(text);
-  const messages = [];
+  const messages: TelegramResponse[] = [];
   for (const chunk of chunks) messages.push(await sendOne(token, chatId, chunk));
-  return messages.length === 1 ? messages[0] : { ok: true, result: messages.map((m: any) => m.result) };
+
+  // Keep the historical return shape for single-message callers. For split posts,
+  // expose the first message as `result` and all message ids as `messages` so callers
+  // do not treat a successful multi-message delivery as a failure.
+  if (messages.length === 1) return messages[0];
+  return {
+    ok: messages.every((message) => message.ok),
+    result: messages[0].result,
+    messages: messages.map((message) => message.result).filter(Boolean),
+  };
 }
