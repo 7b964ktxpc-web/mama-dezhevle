@@ -8,3 +8,5 @@ export * from "./catalog";
 export * from "./fingerprint";
 export * from "./metrics";
 export * from "./children";
+export * from "./children-categories";
+export * from "./child-profile";
