@@ -1,0 +1,35 @@
+name: content-bot
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: mama-dezhevle-content-bot
+  cancel-in-progress: false
+
+jobs:
+  content:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+      - run: npm install --no-package-lock
+      - run: npm run typecheck
+      - run: npm run content-bot
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          CONTENT_BOT_TOKEN: ${{ secrets.CONTENT_BOT_TOKEN }}
+          CONTENT_ADMIN_CHAT_ID: ${{ secrets.CONTENT_ADMIN_CHAT_ID }}
+          TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          CONTENT_AI_API_KEY: ${{ secrets.CONTENT_AI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          CONTENT_AI_MODEL: ${{ secrets.CONTENT_AI_MODEL }}
+          GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
+          AI_MODEL: ${{ secrets.AI_MODEL }}
+          CONTENT_AUTO_GENERATE: "false"
