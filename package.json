@@ -14,6 +14,7 @@
     "preview": "tsx src/jobs/preview.ts",
     "publish": "tsx src/jobs/publish.ts",
     "bot": "tsx src/jobs/bot.ts",
+    "content-bot": "tsx src/jobs/content-bot.ts",
     "test:feed": "tsx src/jobs/test-feed.ts",
     "test:price-alerts": "tsx src/jobs/test-price-alerts.ts"
   },
