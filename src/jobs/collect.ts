@@ -9,7 +9,7 @@ async function main() {
   const sources = enabledProductSources();
 
   if (sources.length === 0) {
-    console.log(JSON.stringify({ collected: 0, sources: 0, priceSnapshots: 0, dealsCreated: 0, alertsNotified: 0, skipped: "no_enabled_sources" }));
+    console.log(JSON.stringify({ collected: 0, sources: 0, priceSnapshots: 0, dealsCreated: 0, alertsNotified: 0, sourceErrors: [], skipped: "no_enabled_sources" }));
     return;
   }
 
@@ -17,68 +17,86 @@ async function main() {
   let priceSnapshots = 0;
   let dealsCreated = 0;
   let alertsNotified = 0;
+  const sourceErrors: Array<{ source: string; stage: "collect" | "product"; externalId?: string; error: string }> = [];
 
   for (const source of sources) {
-    const products = await source.collect();
+    let products;
+    try {
+      products = await source.collect();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      sourceErrors.push({ source: source.id, stage: "collect", error: message });
+      console.error(JSON.stringify({ source: source.id, stage: "collect", error: message }));
+      continue;
+    }
+
     for (const product of products) {
-      const { data: saved, error: productError } = await supabase.from("products").upsert({
-        external_id: product.externalId, source: product.source, url: product.url, title: product.title,
-        brand: product.brand ?? null, category: product.category ?? null, age_label: product.ageLabel ?? null,
-        image_url: product.imageUrl ?? null, rating: product.rating ?? null, reviews_count: product.reviewsCount ?? null,
-        available: product.available, updated_at: new Date().toISOString(),
-      }, { onConflict: "source,external_id" }).select("id").single();
-      if (productError || !saved) throw productError ?? new Error(`Product was not saved: ${product.externalId}`);
+      try {
+        const { data: saved, error: productError } = await supabase.from("products").upsert({
+          external_id: product.externalId, source: product.source, url: product.url, title: product.title,
+          brand: product.brand ?? null, category: product.category ?? null, age_label: product.ageLabel ?? null,
+          image_url: product.imageUrl ?? null, rating: product.rating ?? null, reviews_count: product.reviewsCount ?? null,
+          available: product.available, updated_at: new Date().toISOString(),
+        }, { onConflict: "source,external_id" }).select("id").single();
+        if (productError || !saved) throw productError ?? new Error(`Product was not saved: ${product.externalId}`);
 
-      const { data: latestPrice, error: latestPriceError } = await supabase.from("prices").select("price,old_price")
-        .eq("product_id", saved.id).order("collected_at", { ascending: false }).limit(1).maybeSingle();
-      if (latestPriceError) throw latestPriceError;
+        const { data: latestPrice, error: latestPriceError } = await supabase.from("prices").select("price,old_price")
+          .eq("product_id", saved.id).order("collected_at", { ascending: false }).limit(1).maybeSingle();
+        if (latestPriceError) throw latestPriceError;
 
-      const currentPrice = Number(product.price);
-      const currentOldPrice = product.oldPrice == null ? null : Number(product.oldPrice);
-      const previousPrice = latestPrice ? Number(latestPrice.price) : null;
-      const priceChanged = !latestPrice || previousPrice !== currentPrice ||
-        (latestPrice.old_price == null ? null : Number(latestPrice.old_price)) !== currentOldPrice;
+        const currentPrice = Number(product.price);
+        const currentOldPrice = product.oldPrice == null ? null : Number(product.oldPrice);
+        const previousPrice = latestPrice ? Number(latestPrice.price) : null;
+        const priceChanged = !latestPrice || previousPrice !== currentPrice ||
+          (latestPrice.old_price == null ? null : Number(latestPrice.old_price)) !== currentOldPrice;
 
-      if (priceChanged) {
-        const { error: priceError } = await supabase.from("prices").insert({ product_id: saved.id, price: currentPrice, old_price: currentOldPrice });
-        if (priceError) throw priceError;
-        priceSnapshots += 1;
-        alertsNotified += await notifyPriceAlerts(saved.id, currentPrice, product.title, product.url);
-      }
-
-      const history = await getPriceHistory(supabase, saved.id);
-      const referencePrice = currentOldPrice ?? currentPrice;
-      const deal = calculateDealScore({
-        currentPrice,
-        referencePrice,
-        average30d: history.average30d,
-        min30d: history.min30d,
-        rating: product.rating,
-        reviewsCount: product.reviewsCount,
-        available: product.available,
-      });
-
-      if (deal.level !== "reject") {
-        const { data: latestDeal, error: latestDealError } = await supabase.from("deals")
-          .select("current_price,reference_price,discount_percent,deal_score,deal_level,status")
-          .eq("product_id", saved.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
-        if (latestDealError) throw latestDealError;
-        const sameDeal = latestDeal && Number(latestDeal.current_price) === currentPrice && Number(latestDeal.reference_price) === referencePrice &&
-          Number(latestDeal.discount_percent) === Number(deal.realDiscountPercent) && Number(latestDeal.deal_score) === Number(deal.score) &&
-          latestDeal.deal_level === deal.level && latestDeal.status === "candidate";
-        if (!sameDeal) {
-          const { error: dealError } = await supabase.from("deals").insert({
-            product_id: saved.id, current_price: currentPrice, reference_price: referencePrice,
-            discount_percent: deal.realDiscountPercent, deal_score: deal.score, deal_level: deal.level,
-            ai_reason: deal.reasons.join("; ") || null, status: "candidate",
-          });
-          if (dealError) throw dealError;
-          dealsCreated += 1;
+        if (priceChanged) {
+          const { error: priceError } = await supabase.from("prices").insert({ product_id: saved.id, price: currentPrice, old_price: currentOldPrice });
+          if (priceError) throw priceError;
+          priceSnapshots += 1;
+          alertsNotified += await notifyPriceAlerts(saved.id, currentPrice, product.title, product.url);
         }
+
+        const history = await getPriceHistory(supabase, saved.id);
+        const referencePrice = currentOldPrice ?? currentPrice;
+        const deal = calculateDealScore({
+          currentPrice,
+          referencePrice,
+          average30d: history.average30d,
+          min30d: history.min30d,
+          rating: product.rating,
+          reviewsCount: product.reviewsCount,
+          available: product.available,
+        });
+
+        if (deal.level !== "reject") {
+          const { data: latestDeal, error: latestDealError } = await supabase.from("deals")
+            .select("current_price,reference_price,discount_percent,deal_score,deal_level,status")
+            .eq("product_id", saved.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+          if (latestDealError) throw latestDealError;
+          const sameDeal = latestDeal && Number(latestDeal.current_price) === currentPrice && Number(latestDeal.reference_price) === referencePrice &&
+            Number(latestDeal.discount_percent) === Number(deal.realDiscountPercent) && Number(latestDeal.deal_score) === Number(deal.score) &&
+            latestDeal.deal_level === deal.level && latestDeal.status === "candidate";
+          if (!sameDeal) {
+            const { error: dealError } = await supabase.from("deals").insert({
+              product_id: saved.id, current_price: currentPrice, reference_price: referencePrice,
+              discount_percent: deal.realDiscountPercent, deal_score: deal.score, deal_level: deal.level,
+              ai_reason: deal.reasons.join("; ") || null, status: "candidate",
+            });
+            if (dealError) throw dealError;
+            dealsCreated += 1;
+          }
+        }
+        collected += 1;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        sourceErrors.push({ source: source.id, stage: "product", externalId: product.externalId, error: message });
+        console.error(JSON.stringify({ source: source.id, stage: "product", externalId: product.externalId, error: message }));
       }
-      collected += 1;
     }
   }
-  console.log(JSON.stringify({ collected, sources: sources.length, priceSnapshots, dealsCreated, alertsNotified }));
+
+  console.log(JSON.stringify({ collected, sources: sources.length, priceSnapshots, dealsCreated, alertsNotified, sourceErrors }));
+  if (collected === 0 && sourceErrors.length > 0) process.exitCode = 1;
 }
 main().catch((error) => { console.error(error); process.exit(1); });
