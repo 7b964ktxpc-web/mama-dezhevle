@@ -9,16 +9,17 @@ export interface NormalizedProduct extends ParsedProduct {
   sizeLabel?: string;
 }
 
-const WORDS = new Set(["купить", "доставка", "скидка", "цена", "руб", "рублей", "шт", "штук", "упаковка"]);
+const NOISE_WORDS = new Set(["купить", "доставка", "скидка", "цена", "руб", "рублей", "упаковка"]);
 
 export function normalizeTitle(value: string): string {
   return value.toLowerCase().replace(/ё/g, "е").replace(/&amp;/g, " ").replace(/[^a-zа-я0-9%.,/-]+/gi, " ").replace(/\s+/g, " ").trim()
-    .split(" ").filter((word) => !WORDS.has(word)).join(" ");
+    .split(" ").filter((word) => !NOISE_WORDS.has(word)).join(" ");
 }
 
 export function normalizeProduct(product: ParsedProduct): NormalizedProduct {
+  const raw = product.title.toLowerCase().replace(/ё/g, "е");
+  const packMatch = raw.match(/(?:^|\s)(\d+)\s*(?:шт|штук)(?:\s|$)/i);
   const title = normalizeTitle(product.title);
-  const packMatch = title.match(/(?:^|\s)(\d+)\s*(?:шт|штук)(?:\s|$)/i);
   const weightMatch = title.match(/(?:^|\s)(\d+(?:[.,]\d+)?)\s*(кг|kg|г|гр|g)(?:\s|$)/i);
   const volumeMatch = title.match(/(?:^|\s)(\d+(?:[.,]\d+)?)\s*(л|l|мл|ml)(?:\s|$)/i);
   const sizeMatch = title.match(/(?:размер|size)\s*([0-9a-zа-я+-]+)/i);
