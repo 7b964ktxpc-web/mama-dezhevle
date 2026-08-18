@@ -7,3 +7,4 @@ export * from "./quality";
 export * from "./catalog";
 export * from "./fingerprint";
 export * from "./metrics";
+export * from "./children";
