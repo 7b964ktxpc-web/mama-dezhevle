@@ -14,3 +14,4 @@ export * from "./age-signals";
 export * from "./child-profile-v2";
 export * from "./marketplace-key";
 export * from "./dedupe";
+export * from "./fixture-parser";
