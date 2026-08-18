@@ -20,10 +20,16 @@ const RUBRICS = [
   "Вечерний разговор",
 ];
 
-const FALLBACKS: Array<Omit<ContentDraft, "topic"> & { topic: string }> = [
+const FALLBACKS: ContentDraft[] = [
   { contentType: "discussion", rubric: "Живой разговор", topic: "Мамины покупки", body: "Мамы, а у вас бывает такое: идёшь за одной нужной вещью, а возвращаешься домой с пакетом всего на свете? 😂\n\nЧто вы чаще всего покупаете спонтанно? Рассказывайте — интересно сравнить наши «ну раз уж пришла» покупки 👀" },
-  { contentType: "discussion", rubric: "Мама поймёт", topic: "Пять минут тишины", body: "Вопрос дня 😂\n\nЕсли вам подарят прямо сейчас 30 минут полной тишины и никто ничего не просит — что вы сделаете?\n\n☕ Выпью кофе\n😴 Лягу спать\n📱 Залипну в телефон\n🧹 Сделаю дела, которые давно откладываю\n\nА свой вариант пишите в комментариях ❤️" },
+  { contentType: "poll", rubric: "Мама поймёт", topic: "Пять минут тишины", body: "Вопрос дня 😂\n\nЕсли вам подарят прямо сейчас 30 минут полной тишины и никто ничего не просит — что вы сделаете?\n\n☕ Выпью кофе\n😴 Лягу спать\n📱 Залипну в телефон\n🧹 Сделаю дела, которые давно откладываю\n\nА свой вариант пишите в комментариях ❤️" },
   { contentType: "discussion", rubric: "Вечерний разговор", topic: "Мамины маленькие радости", body: "Иногда счастье — это вообще не что-то большое ❤️\n\nТёплый чай, ребёнок наконец уснул, никто не зовёт, дома тихо… и можно просто пять минут посидеть.\n\nА какая маленькая вещь сегодня порадовала вас? Давайте соберём здесь список маминых радостей 🥰" },
+  { contentType: "discussion", rubric: "Мама поймёт", topic: "Фраза, которую мама слышит сто раз", body: "Мамы, какая фраза от ребёнка у вас звучит чаще всего? 😂\n\n«Мам, смотри!» — уже можно считать отдельным видом спорта.\n\nПишите свою фирменную фразу — посмотрим, у кого сегодня чемпионство 👇" },
+  { contentType: "discussion", rubric: "Живой разговор", topic: "Утро без кофе", body: "Честный опрос без осуждения 😂\n\nКто вы утром?\n\n☕ Сначала кофе, потом человек\n😴 Где я и какой сегодня день?\n🏃 Уже всех собрала и сама не поняла как\n✨ Просыпаюсь бодрой — да, такие тоже существуют\n\nА как у вас проходит первое утро после будильника?" },
+  { contentType: "discussion", rubric: "Мамины истории", topic: "Самая неожиданная мамина суперсила", body: "Кажется, после появления детей у мам появляется суперспособность находить потерянные вещи по звуку 😂\n\nКлючи? Нашлись. Носок? Нашёлся. Игрушка, которую ребёнок искал полчаса? Конечно, нашлась у мамы.\n\nКакая суперсила появилась у вас после рождения ребёнка? ❤️" },
+  { contentType: "discussion", rubric: "Полезно без занудства", topic: "Мамины находки для быта", body: "Давайте соберём маленькую копилку маминых лайфхаков ❤️\n\nКакой простой бытовой трюк реально облегчает вам жизнь? Такой, который хочется рассказать подруге.\n\nПишите в комментариях — лучшие идеи соберём в отдельный пост 👇" },
+  { contentType: "poll", rubric: "Опрос", topic: "Когда дома наконец тихо", body: "Дети уснули. В доме тишина. И вот тут главный вопрос 😂\n\nЧто вы делаете первым делом?\n\n🛋 Просто лежу\n📱 Телефон\n☕ Чай\n🧹 Быстро доделаю дела\n🎬 Включу что-нибудь посмотреть\n\nА может, у вас есть свой секретный ритуал?" },
+  { contentType: "discussion", rubric: "Вечерний разговор", topic: "Что сегодня получилось", body: "Мамы, давайте сегодня без списка того, что не успели ❤️\n\nНазовите одну вещь, которая сегодня у вас получилась. Даже если это просто «я спокойно выпила чай» — это уже достижение 😄\n\nЧто получилось у вас сегодня?" },
 ];
 
 function env(name: string) { return process.env[name]?.trim() || ""; }
@@ -67,7 +73,10 @@ async function generateWithGemini(recent: string[]) {
     const response = await fetch(`${API_BASE}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.9 } }),
+      body: JSON.stringify({
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: "application/json" },
+      }),
       signal: controller.signal,
     });
     if (!response.ok) return null;
@@ -84,10 +93,10 @@ async function generateWithGemini(recent: string[]) {
 
 export async function generateContentDraft(): Promise<ContentDraft> {
   const supabase = getSupabaseAdmin();
-  const { data } = await supabase.from("content_posts").select("topic").order("created_at", { ascending: false }).limit(20);
+  const { data } = await supabase.from("content_posts").select("topic").order("created_at", { ascending: false }).limit(50);
   const recent = (data ?? []).map((item) => String(item.topic)).filter(Boolean);
   const aiDraft = await generateWithGemini(recent);
   if (aiDraft) return aiDraft;
-  const index = recent.length % FALLBACKS.length;
-  return FALLBACKS[index];
+  const unused = FALLBACKS.find((draft) => !recent.includes(draft.topic));
+  return unused ?? FALLBACKS[recent.length % FALLBACKS.length];
 }
