@@ -1,6 +1,8 @@
 import { getSupabaseAdmin } from "../lib/supabase-admin";
 import { buildDealPost } from "../lib/post-template";
+import { reviewDealWithAi } from "../lib/ai";
 import { sendTelegramPost } from "../lib/telegram";
+import type { Product } from "../lib/types";
 
 const previewOnly = process.env.PREVIEW_ONLY === "true";
 const MIN_SCORE = 70;
@@ -8,12 +10,12 @@ const MIN_SCORE = 70;
 async function main() {
   const supabase = getSupabaseAdmin();
   const { data: deals, error } = await supabase.from("deals")
-    .select("id, product_id, current_price, reference_price, discount_percent, deal_score, deal_level, ai_reason, products(title,url,rating,reviews_count,age_label,source,available)")
+    .select("id, product_id, current_price, reference_price, discount_percent, deal_score, deal_level, ai_reason, products(title,url,rating,reviews_count,age_label,category,source,available)")
     .eq("status", "candidate").gte("deal_score", MIN_SCORE)
     .order("deal_score", { ascending: false }).limit(10);
   if (error) throw error;
 
-  let prepared = 0, skippedPublished = 0, skippedNotImproved = 0;
+  let prepared = 0, skippedPublished = 0, skippedNotImproved = 0, skippedByAi = 0;
   for (const deal of deals ?? []) {
     const product = Array.isArray(deal.products) ? deal.products[0] : deal.products;
     if (!product || product.available === false || (product.reviews_count ?? 0) < 10) continue;
@@ -35,6 +37,34 @@ async function main() {
       continue;
     }
 
+    const deterministicDeal = {
+      score: deal.deal_score,
+      level: deal.deal_level,
+      realDiscountPercent: Number(deal.discount_percent),
+      savingAmount: Math.max(0, Number(deal.reference_price) - currentPrice),
+      reasons: deal.ai_reason ? [deal.ai_reason] : [],
+    };
+
+    const ai = await reviewDealWithAi({
+      externalId: String(deal.product_id),
+      source: product.source ?? "unknown",
+      url: product.url,
+      title: product.title,
+      category: product.category ?? null,
+      ageLabel: product.age_label ?? null,
+      rating: product.rating ?? null,
+      reviewsCount: product.reviews_count ?? null,
+      price: currentPrice,
+      oldPrice: Number(deal.reference_price),
+      available: product.available,
+    } satisfies Product, deterministicDeal);
+
+    if (ai && !ai.approved) {
+      skippedByAi += 1;
+      console.log(`AI rejected deal ${deal.id}: ${ai.qualityScore}/100 — ${ai.reason}`);
+      continue;
+    }
+
     const text = buildDealPost({
       title: product.title,
       currentPrice,
@@ -44,18 +74,13 @@ async function main() {
       ageLabel: product.age_label,
       url: product.url,
       source: product.source,
-    }, {
-      score: deal.deal_score,
-      level: deal.deal_level,
-      realDiscountPercent: Number(deal.discount_percent),
-      savingAmount: Math.max(0, Number(deal.reference_price) - currentPrice),
-      reasons: deal.ai_reason ? [deal.ai_reason] : [],
-    });
+    }, deterministicDeal);
 
     prepared += 1;
     if (previewOnly) {
       console.log(`PREVIEW deal ${deal.id}:`);
       console.log(text);
+      if (ai) console.log(`AI: ${ai.qualityScore}/100 — ${ai.reason}`);
       continue;
     }
 
@@ -79,7 +104,7 @@ async function main() {
     console.log(`Published deal ${deal.id} as Telegram message ${messageId}`);
   }
 
-  console.log(JSON.stringify({ prepared, skippedPublished, skippedNotImproved, previewOnly }));
+  console.log(JSON.stringify({ prepared, skippedPublished, skippedNotImproved, skippedByAi, previewOnly }));
 }
 
 main().catch((error) => {
