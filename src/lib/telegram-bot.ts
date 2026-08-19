@@ -25,12 +25,18 @@ export type TelegramUpdate = {
     chat: { id: number; type: string };
     from?: { id: number; first_name?: string; username?: string };
   };
+  callback_query?: {
+    id: string;
+    data?: string;
+    message?: { message_id: number; chat: { id: number }; text?: string };
+    from?: { id: number; first_name?: string; username?: string };
+  };
 };
 
 type TelegramFile = { file_path: string };
 
 export async function getTelegramUpdates(offset?: number, timeout = 25) {
-  return telegramCall<TelegramUpdate[]>("getUpdates", { offset, timeout, allowed_updates: ["message"] });
+  return telegramCall<TelegramUpdate[]>("getUpdates", { offset, timeout, allowed_updates: ["message", "callback_query"] });
 }
 
 export async function getTelegramPhotoUrl(fileId: string) {
@@ -39,30 +45,35 @@ export async function getTelegramPhotoUrl(fileId: string) {
   return `https://api.telegram.org/file/bot${token}/${file.file_path}`;
 }
 
-export async function sendTelegramBotMessage(chatId: number | string, text: string) {
-  return telegramCall("sendMessage", { chat_id: chatId, text, disable_web_page_preview: false });
+export async function sendTelegramBotMessage(chatId: number | string, text: string, replyMarkup?: Record<string, unknown>) {
+  return telegramCall("sendMessage", { chat_id: chatId, text, disable_web_page_preview: false, ...(replyMarkup ? { reply_markup: replyMarkup } : {}) });
+}
+
+export async function answerTelegramCallback(callbackQueryId: string, text?: string) {
+  return telegramCall("answerCallbackQuery", { callback_query_id: callbackQueryId, ...(text ? { text, show_alert: false } : {}) });
+}
+
+export function mainMenuKeyboard() {
+  return { inline_keyboard: [[{ text: "🔎 Найти дешевле", callback_data: "menu:search" }, { text: "📸 По фото", callback_data: "menu:photo" }], [{ text: "🔔 Мои скидки", callback_data: "menu:watches" }, { text: "💬 Живое общение", callback_data: "menu:support" }]] };
+}
+
+export function resultKeyboard(item: { id?: string; url?: string }) {
+  const row: Array<Record<string, string>> = [];
+  if (item.url) row.push({ text: "🛒 Открыть товар", url: item.url });
+  if (item.id) row.push({ text: "🔔 Следить", callback_data: `watch:${item.id}` });
+  return { inline_keyboard: row.length ? [row] : [] };
+}
+
+export function supportKeyboard() {
+  return { inline_keyboard: [[{ text: "💬 Написать оператору", callback_data: "support:start" }], [{ text: "🔎 Новый поиск", callback_data: "menu:search" }]] };
 }
 
 export function startText(firstName?: string) {
   const name = firstName ? `, ${firstName}` : "";
-  return [`Привет${name}! 👋`, "Я — бот «Мама, дешевле!».", "", "Напиши, что нужно найти. Например:", "👕 рубашка мальчику 3 года до 1500 ₽", "👟 кроссовки девочке 30 размера до 2500 ₽", "", "Или просто пришли 📸 фото — попробую определить товар и найти похожие варианты дешевле.", "", "Если хочешь следить за ценой найденного товара, отправь: /watch ID ЦЕНА", "Отключить отслеживание: /unwatch ID", "Мои подписки: /watches"].join("\n");
+  return [`Привет${name}! 👋`, "Я — бот «Мама, дешевле!».", "", "Напиши, что нужно найти. Например:", "👕 рубашка мальчику 3 года до 1500 ₽", "👟 кроссовки девочке 30 размера до 2500 ₽", "", "Или просто пришли 📸 фото — попробую определить товар и найти похожие варианты дешевле.", "", "Можно общаться со мной обычными сообщениями — не обязательно использовать команды.", "Если понадобится человек, нажми «💬 Живое общение».", "", "Мои подписки: /watches"].join("\n");
 }
 
-export function normalizeSearchQuery(text: string) {
-  return text.replace(/\s+/g, " ").trim().slice(0, 1000);
-}
-
-export function searchReply(query: string) {
-  return ["🔎 Запрос сохранён:", `«${query}»`, "", "Когда каталог будет подключён, здесь появятся несколько самых выгодных вариантов."].join("\n");
-}
-
-export function parseWatchCommand(text: string) {
-  const match = text.trim().match(/^\/watch(?:@\w+)?\s+(\S+)(?:\s+(\d+(?:[.,]\d+)?))?$/i);
-  if (!match) return null;
-  return { productId: match[1], targetPrice: match[2] ? Number(match[2].replace(",", ".")) : null };
-}
-
-export function parseUnwatchCommand(text: string) {
-  const match = text.trim().match(/^\/unwatch(?:@\w+)?\s+(\S+)$/i);
-  return match ? match[1] : null;
-}
+export function normalizeSearchQuery(text: string) { return text.replace(/\s+/g, " ").trim().slice(0, 1000); }
+export function searchReply(query: string) { return ["🔎 Запрос сохранён:", `«${query}»`, "", "Когда каталог будет подключён, здесь появятся несколько самых выгодных вариантов."].join("\n"); }
+export function parseWatchCommand(text: string) { const match = text.trim().match(/^\/watch(?:@\w+)?\s+(\S+)(?:\s+(\d+(?:[.,]\d+)?))?$/i); if (!match) return null; return { productId: match[1], targetPrice: match[2] ? Number(match[2].replace(",", ".")) : null }; }
+export function parseUnwatchCommand(text: string) { const match = text.trim().match(/^\/unwatch(?:@\w+)?\s+(\S+)$/i); return match ? match[1] : null; }
