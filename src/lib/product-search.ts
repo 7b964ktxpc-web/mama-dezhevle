@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "./supabase-admin";
+import { searchWebParser } from "./web-parser-search";
 
 export type SearchFilters = {
   terms: string[];
@@ -16,6 +17,9 @@ export type SearchResult = {
   rating?: number | null;
   url: string;
   imageUrl?: string | null;
+  source?: string;
+  verified?: boolean;
+  verificationStatus?: string;
 };
 
 export function parseSearchQuery(query: string): SearchFilters {
@@ -78,13 +82,12 @@ export async function searchProducts(query: string, limit = 5) {
   const { data, error } = await request;
   if (error) throw error;
 
-  const candidates = ((data ?? []) as ProductRow[])
+  const catalogCandidates: SearchResult[] = ((data ?? []) as ProductRow[])
     .map((product) => {
       const latest = [...(product.prices ?? [])].sort((a, b) => new Date(b.collected_at).getTime() - new Date(a.collected_at).getTime())[0];
       if (!latest) return null;
       const price = Number(latest.price);
       if (!Number.isFinite(price) || (filters.maxPrice !== undefined && price > filters.maxPrice)) return null;
-
       const searchableText = [product.title, product.age_label, product.category, product.brand].filter(Boolean).join(" ");
       return {
         item: {
@@ -95,11 +98,26 @@ export async function searchProducts(query: string, limit = 5) {
           rating: product.rating === null ? null : Number(product.rating),
           url: product.url,
           imageUrl: product.image_url,
+          source: "catalog",
         },
         score: scoreProduct(searchableText, filters, product.rating, latest.old_price),
       };
     })
-    .filter((value): value is NonNullable<typeof value> => value !== null);
+    .filter((value): value is NonNullable<typeof value> => value !== null)
+    .sort((a, b) => b.score - a.score || a.item.price - b.item.price)
+    .slice(0, limit)
+    .map(({ item }) => item);
 
-  return candidates.sort((a, b) => b.score - a.score || a.item.price - b.item.price).slice(0, limit).map(({ item }) => item);
+  const webCandidates = await searchWebParser(query, Math.max(limit * 2, 8));
+  const merged = [...catalogCandidates, ...webCandidates]
+    .filter((item) => filters.maxPrice === undefined || item.price <= filters.maxPrice)
+    .sort((a, b) => Number(b.verified) - Number(a.verified) || a.price - b.price);
+
+  const seen = new Set<string>();
+  return merged.filter((item) => {
+    const key = item.url || `${item.title.toLowerCase()}|${item.price}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).slice(0, limit);
 }
