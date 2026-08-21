@@ -26,14 +26,26 @@ export function parseSearchQuery(query: string): SearchFilters {
   const normalized = query.toLowerCase().replace(/ё/g, "е");
   const maxPriceMatch = normalized.match(/(?:до|<=|не дороже)\s*(\d[\d\s]*(?:[.,]\d+)?)\s*(?:₽|руб(?:лей|ля)?\.?)?/i);
   const maxPrice = maxPriceMatch ? Number(maxPriceMatch[1].replace(/\s/g, "").replace(",", ".")) : undefined;
-  const ageMatch = normalized.match(/(?:на\s*)?(\d{1,2})\s*(?:лет|года|год|г\.?)/i);
-  const age = ageMatch ? Number(ageMatch[1]) : undefined;
+
+  // Supports both "2 года" and the common parent wording "2,5 года".
+  const ageMatches = [...normalized.matchAll(/(?:на\s*)?(\d{1,2}(?:[.,]\d)?)\s*(?:лет|года|год|г\.?)/gi)];
+  const ageMatch = ageMatches.at(-1);
+  const age = ageMatch ? Number(ageMatch[1].replace(",", ".")) : undefined;
+
   const sizeMatch = normalized.match(/(?:размер\s*)?(\d{2,3})\s*(?:см)?\b/i);
   const size = sizeMatch ? Number(sizeMatch[1]) : undefined;
   const gender = normalized.includes("мальчик") || normalized.includes("сын") ? "мальчик" : normalized.includes("девоч") || normalized.includes("дочь") ? "девочка" : undefined;
-  const cleaned = normalized.replace(/(?:до|<=|не дороже)\s*\d[\d\s]*(?:[.,]\d+)?\s*(?:₽|руб(?:лей|ля)?\.?)?/gi, " ").replace(/\s+/g, " ").trim();
+
+  const cleaned = normalized
+    .replace(/(?:до|<=|не дороже)\s*\d[\d\s]*(?:[.,]\d+)?\s*(?:₽|руб(?:лей|ля)?\.?)?/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   const stopWords = new Set(["нужна", "нужен", "нужно", "найди", "ищу", "хочу", "мне", "для", "ребенку", "ребенок", "лет", "года", "год", "см", "размер", "мальчику", "мальчик", "девочке", "девочка", "сыну", "сын", "дочке", "дочь"]);
-  const terms = cleaned.replace(/[^\p{L}\p{N}\s-]/gu, " ").split(/\s+/).filter((word) => word.length >= 3 && !stopWords.has(word) && !/^\d+$/.test(word)).slice(0, 8);
+  const terms = cleaned
+    .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+    .split(/\s+/)
+    .filter((word) => word.length >= 3 && !stopWords.has(word) && !/^\d+$/.test(word))
+    .slice(0, 8);
   return { terms: [...new Set(terms)], maxPrice, age, size, gender };
 }
 
@@ -46,8 +58,10 @@ function scoreProduct(text: string, filters: SearchFilters, rating?: number | nu
     if (genderWords.some((word) => normalizedText.includes(word))) score += 18;
   }
   if (filters.age !== undefined) {
-    if (new RegExp(`(?:^|\\D)${filters.age}(?:\\D|$)`).test(normalizedText)) score += 12;
-    if (normalizedText.includes(`${filters.age} года`) || normalizedText.includes(`${filters.age} год`)) score += 8;
+    const ageText = String(filters.age).replace(".", "[.,]");
+    if (new RegExp(`(?:^|\\D)${ageText}(?:\\D|$)`).test(normalizedText)) score += 12;
+    const wholeAge = Math.floor(filters.age);
+    if (normalizedText.includes(`${wholeAge} года`) || normalizedText.includes(`${wholeAge} год`) || normalizedText.includes(`${filters.age} лет`)) score += 8;
   }
   if (filters.size !== undefined && new RegExp(`(?:^|\\D)${filters.size}(?:\\D|$)`).test(normalizedText)) score += 12;
   if (rating) score += Math.min(Number(rating), 5) * 2;
