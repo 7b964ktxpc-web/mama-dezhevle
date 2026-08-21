@@ -13,10 +13,10 @@ function looksLikeSearch(text: string) {
 }
 
 function missingDetails(text: string) {
-  const questions: string[] = [];
-  if (!/(\d+(?:[.,]\d+)?)\s*(лет|год|года|г\.?)|\b(мальчик|девочк|сын|дочк)\b/i.test(text)) questions.push("Для какого возраста или роста ребёнка ищем?");
-  if (!/(до\s*\d|\d+\s*₽|\d+\s*руб)/i.test(text)) questions.push("Какой бюджет примерно заложить?");
-  return questions;
+  // Budget is optional: the bot must be able to search immediately and sort by
+  // price even when the parent did not specify a spending limit.
+  if (/(\d+(?:[.,]\d+)?)\s*(лет|год|года|г\.?)|\b(мальчик|девочк|сын|дочк)\b/i.test(text)) return [];
+  return ["Для какого возраста или роста ребёнка ищем?"];
 }
 
 async function remember(userId: number | string, role: "user" | "assistant", text: string) {
