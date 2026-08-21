@@ -42,3 +42,7 @@ export async function searchWebParser(query: string, limit = 5): Promise<WebPars
     clearTimeout(timer);
   }
 }
+
+// Keep one public name for the Telegram/conversation layer while retaining
+// searchWebParser as the lower-level adapter name used by product-search.
+export const searchWebProducts = searchWebParser;
