@@ -3,6 +3,7 @@ import { searchMarketplaces } from "./marketplace-search";
 import { searchProductsWithAi, searchOpenAiWeb } from "./ai-search";
 import { searchOzonPartner } from "./ozon-partner";
 import { searchDuckDuckGo } from "./web-search-free";
+import { searchYandexMarket } from "./yandex-market-search";
 
 export type WebParserSearchResult = SearchResult & {
   source?: string;
@@ -49,14 +50,16 @@ export async function searchWebParser(query: string, limit = 5): Promise<WebPars
 
 // Public name for the Telegram/conversation layer. Order of fallback:
 // 1) external parser microservice (if PARSER_API_URL configured),
-// 2) Ozon Partner API (if OZON_PARTNER_CLIENT_ID/KEY set) — free, real prices,
-// 3) AI web search — Gemini (GEMINI_API_KEY) or OpenAI (OPENAI_API_KEY, also
-//    used for photo search) — the "ИИ сам ищет" path,
-// 4) direct marketplace scraping (anti-bot may block it in some environments),
-// 5) keyless DuckDuckGo links (last resort; may be empty).
+// 2) Yandex Market Partner API (YANDEX_MARKET_API_KEY/BUSINESS_ID) — real search,
+// 3) Ozon Partner API (if OZON_PARTNER_CLIENT_ID/KEY set) — free, real prices,
+// 4) AI web search — Gemini (GEMINI_API_KEY) or OpenAI (OPENAI_API_KEY) — "ИИ ищет",
+// 5) direct marketplace scraping (anti-bot may block it in some environments),
+// 6) keyless DuckDuckGo links (last resort; may be empty).
 export async function searchWebProducts(query: string, limit = 5): Promise<SearchResult[]> {
   const base = parserUrl();
   if (base) return searchWebParser(query, limit);
+  const yamarket = await searchYandexMarket(query, limit);
+  if (yamarket.length) return yamarket;
   const ozon = await searchOzonPartner(query, limit);
   if (ozon.length) return ozon;
   const gemini = await searchProductsWithAi(query, limit);
