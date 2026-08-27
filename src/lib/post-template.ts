@@ -1,6 +1,8 @@
 import type { DealResult } from "./deal-score";
+import { trackedUrlFor } from "./affiliate";
 
 type ProductForPost = {
+  id?: string | number;
   title: string;
   currentPrice: number;
   referencePrice: number;
@@ -45,6 +47,7 @@ export function buildDealPost(product: ProductForPost, deal: DealResult) {
   if (product.ageLabel) lines.push(`👶 Подойдёт: ${product.ageLabel}`);
   if (deal.reasons[0]) lines.push(`💬 Почему взяли в подборку: ${deal.reasons[0]}`);
 
-  lines.push("", `🏪 ${source}`, `👉 [Посмотреть товар](${product.url})`);
+  const link = trackedUrlFor(product.id, product.source, product.url);
+  lines.push("", `🏪 ${source}`, `👉 [Посмотреть товар](${link})`);
   return lines.join("\n");
 }

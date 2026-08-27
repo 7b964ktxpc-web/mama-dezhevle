@@ -1,4 +1,4 @@
-import type { Product } from "../product";
+import type { Product } from "../types";
 
 /**
  * Parser for an Ozon affiliate XML/YML product feed.
@@ -65,8 +65,8 @@ function parseYml(xml: string): Product[] {
         source: "ozon",
         title,
         url,
-        currentPrice,
-        referencePrice: referencePrice && referencePrice > currentPrice ? referencePrice : null,
+        price: currentPrice,
+        oldPrice: referencePrice && referencePrice > currentPrice ? referencePrice : null,
         available,
         category: category || null,
         imageUrl: imageUrl || null,

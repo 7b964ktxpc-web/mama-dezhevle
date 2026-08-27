@@ -83,6 +83,11 @@ export async function handleConversation(userId: number | string, text: string):
     const results = [...catalog, ...web].filter((item: any, index: number, all: any[]) => item?.url ? all.findIndex((x) => x?.url === item.url) === index : true).slice(0, 8);
     const reply = results.length ? `Нашла ${results.length} вариантов. Сейчас покажу самые интересные 👇` : "По этому запросу пока не нашла подходящих вариантов. Давай уточним товар, размер или бюджет?";
     await remember(userId, "assistant", reply);
+    try {
+      await getSupabaseAdmin().from("search_requests").insert({ telegram_user_id: Number(userId), chat_id: Number(userId), query_text: clean });
+    } catch (insertError) {
+      console.error("search_requests insert failed", insertError);
+    }
     return { text: reply, search: true, results };
   } catch (error) {
     console.error("Conversation search failed", error);

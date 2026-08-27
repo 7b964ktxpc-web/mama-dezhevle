@@ -66,6 +66,7 @@ async function main() {
     }
 
     const text = buildDealPost({
+      id: deal.product_id,
       title: product.title,
       currentPrice,
       referencePrice: Number(deal.reference_price),

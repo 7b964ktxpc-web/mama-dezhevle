@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "./supabase-admin";
 import { sendTelegramBotMessage } from "./telegram-bot";
+import { trackedUrlFor } from "./affiliate";
 
 export async function addPriceAlert(input: { telegramUserId: number; chatId: number; productId: string; targetPrice?: number | null }) {
   const supabase = getSupabaseAdmin();
@@ -34,7 +35,9 @@ export async function notifyPriceAlerts(productId: string, currentPrice: number,
     if (notifiedPrice !== null && currentPrice >= notifiedPrice) continue;
 
     try {
-      await sendTelegramBotMessage(alert.chat_id, `📉 Цена снизилась!\n\n${title}\n💰 Сейчас: ${Math.round(currentPrice).toLocaleString("ru-RU")} ₽\n👉 ${url}`);
+      const link = trackedUrlFor(productId, null, url);
+      const targetNote = target !== null ? ` (цель ${Math.round(target).toLocaleString("ru-RU")} ₽)` : "";
+      await sendTelegramBotMessage(alert.chat_id, `📉 Цена снизилась${targetNote}!\n\n${title}\n💰 Сейчас: ${Math.round(currentPrice).toLocaleString("ru-RU")} ₽\n👉 ${link}`);
     } catch (telegramError) {
       console.error(`Price alert Telegram delivery failed for alert ${alert.id}`, telegramError);
       continue;

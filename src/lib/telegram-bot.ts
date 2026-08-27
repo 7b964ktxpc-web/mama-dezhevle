@@ -57,9 +57,11 @@ export function mainMenuKeyboard() {
   return { inline_keyboard: [[{ text: "🔎 Найти дешевле", callback_data: "menu:search" }, { text: "📸 По фото", callback_data: "menu:photo" }], [{ text: "🔔 Мои скидки", callback_data: "menu:watches" }, { text: "💬 Живое общение", callback_data: "menu:support" }]] };
 }
 
-export function resultKeyboard(item: { id?: string; url?: string }) {
+import { trackedUrlFor } from "./affiliate";
+
+export function resultKeyboard(item: { id?: string; url?: string; source?: string }) {
   const row: Array<Record<string, string>> = [];
-  if (item.url) row.push({ text: "🛒 Открыть товар", url: item.url });
+  if (item.url) row.push({ text: "🛒 Открыть товар", url: trackedUrlFor(item.id, item.source, item.url) });
   if (item.id) row.push({ text: "🔔 Следить", callback_data: `watch:${item.id}` });
   return { inline_keyboard: row.length ? [row] : [] };
 }
