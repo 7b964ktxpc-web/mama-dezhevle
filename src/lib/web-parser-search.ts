@@ -4,6 +4,8 @@ import { searchProductsWithAi, searchOpenAiWeb } from "./ai-search";
 import { searchOzonPartner } from "./ozon-partner";
 import { searchDuckDuckGo } from "./web-search-free";
 import { searchYandexMarket } from "./yandex-market-search";
+import { searchOzonDirect } from "./sources/ozon-search";
+import { searchWildberriesDirect } from "./sources/wildberries-search";
 
 export type WebParserSearchResult = SearchResult & {
   source?: string;
@@ -60,6 +62,10 @@ export async function searchWebProducts(query: string, limit = 5): Promise<Searc
   if (base) return searchWebParser(query, limit);
   const yamarket = await searchYandexMarket(query, limit);
   if (yamarket.length) return yamarket;
+  const ozonDirect = await searchOzonDirect(query, limit);
+  if (ozonDirect.length) return ozonDirect;
+  const wbDirect = await searchWildberriesDirect(query, limit);
+  if (wbDirect.length) return wbDirect;
   const ozon = await searchOzonPartner(query, limit);
   if (ozon.length) return ozon;
   const gemini = await searchProductsWithAi(query, limit);
