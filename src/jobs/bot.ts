@@ -5,7 +5,7 @@ import { searchWebProducts } from "../lib/web-parser-search";
 import { handleConversation } from "../lib/conversation-agent";
 import { addPriceAlert, removePriceAlert } from "../lib/price-alerts";
 import { trackedUrlFor } from "../lib/affiliate";
-import { answerTelegramCallback, getTelegramPhotoUrl, getTelegramUpdates, mainMenuKeyboard, normalizeSearchQuery, parseUnwatchCommand, parseWatchCommand, resultKeyboard, sendTelegramBotMessage, startText, supportKeyboard } from "../lib/telegram-bot";
+import { answerTelegramCallback, deleteTelegramWebhook, getTelegramPhotoUrl, getTelegramUpdates, mainMenuKeyboard, normalizeSearchQuery, parseUnwatchCommand, parseWatchCommand, resultKeyboard, sendTelegramBotMessage, startText, supportKeyboard } from "../lib/telegram-bot";
 
 function formatResult(item: any, index: number) { return `${index + 1}. ${item.title}\n💰 ${Math.round(Number(item.price)).toLocaleString("ru-RU")} ₽${item.oldPrice && item.oldPrice > item.price ? ` (было ${Math.round(Number(item.oldPrice)).toLocaleString("ru-RU")} ₽)` : ""}${item.rating ? ` ⭐ ${item.rating}` : ""}${item.source ? `\n🏪 ${item.source}` : ""}`; }
 async function sendResults(chatId: number, results: any[]) { if (!results.length) return sendTelegramBotMessage(chatId, "🔎 Пока ничего подходящего не нашла. Попробуй изменить запрос или бюджет.", supportKeyboard()); for (const [index, item] of results.slice(0, 8).entries()) await sendTelegramBotMessage(chatId, formatResult(item, index), resultKeyboard(item)); }
@@ -38,6 +38,7 @@ async function releaseBotLock(supabase: ReturnType<typeof getSupabaseAdmin>, tok
 async function main() {
   const supabase = getSupabaseAdmin(); const lockToken = randomUUID(); if (!(await acquireBotLock(supabase, lockToken))) { console.log("Telegram bot is already running; exiting."); return; }
   try {
+    await deleteTelegramWebhook();
     const { data: latestUpdate, error: latestUpdateError } = await supabase.from("telegram_bot_updates").select("update_id").order("update_id", { ascending: false }).limit(1).maybeSingle(); if (latestUpdateError) throw latestUpdateError;
     const updates = await getTelegramUpdates(latestUpdate ? Number(latestUpdate.update_id) + 1 : undefined);
     for (const update of updates) {

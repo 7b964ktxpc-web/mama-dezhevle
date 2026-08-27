@@ -39,6 +39,15 @@ export async function getTelegramUpdates(offset?: number, timeout = 25) {
   return telegramCall<TelegramUpdate[]>("getUpdates", { offset, timeout, allowed_updates: ["message", "callback_query"] });
 }
 
+export async function deleteTelegramWebhook() {
+  try {
+    return await telegramCall("deleteWebhook", { drop_pending_updates: false });
+  } catch (error) {
+    console.error("deleteWebhook failed", error);
+    return null;
+  }
+}
+
 export async function getTelegramPhotoUrl(fileId: string) {
   const file = await telegramCall<TelegramFile>("getFile", { file_id: fileId });
   const token = requireEnv("TELEGRAM_BOT_TOKEN");

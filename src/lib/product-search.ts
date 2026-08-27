@@ -1,5 +1,5 @@
 import { getSupabaseAdmin } from "./supabase-admin";
-import { searchWebParser } from "./web-parser-search";
+import { searchWebProducts } from "./web-parser-search";
 
 export type SearchFilters = {
   terms: string[];
@@ -122,7 +122,7 @@ export async function searchProducts(query: string, limit = 5) {
     .slice(0, limit)
     .map(({ item }) => item);
 
-  const webCandidates = await searchWebParser(query, Math.max(limit * 2, 8));
+  const webCandidates = await searchWebProducts(query, Math.max(limit * 2, 8));
   const merged = [...catalogCandidates, ...webCandidates]
     .filter((item) => filters.maxPrice === undefined || item.price <= filters.maxPrice)
     .sort((a, b) => Number(b.verified) - Number(a.verified) || a.price - b.price);

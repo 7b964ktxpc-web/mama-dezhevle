@@ -1,4 +1,6 @@
 import type { SearchResult } from "./product-search";
+import { searchMarketplaces } from "./marketplace-search";
+import { searchProductsWithAi } from "./ai-search";
 
 export type WebParserSearchResult = SearchResult & {
   source?: string;
@@ -43,6 +45,14 @@ export async function searchWebParser(query: string, limit = 5): Promise<WebPars
   }
 }
 
-// Keep one public name for the Telegram/conversation layer while retaining
-// searchWebParser as the lower-level adapter name used by product-search.
-export const searchWebProducts = searchWebParser;
+// Public name for the Telegram/conversation layer. Order of fallback:
+// 1) external parser microservice (if PARSER_API_URL configured),
+// 2) AI web search (if a Gemini/AI key is set) — the "ИИ ищет" path,
+// 3) direct marketplace scraping (anti-bot may block it in some environments).
+export async function searchWebProducts(query: string, limit = 5): Promise<SearchResult[]> {
+  const base = parserUrl();
+  if (base) return searchWebParser(query, limit);
+  const ai = await searchProductsWithAi(query, limit);
+  if (ai.length) return ai;
+  return searchMarketplaces(query, limit);
+}
