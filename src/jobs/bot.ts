@@ -1,4 +1,19 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+
+function loadDotEnv() {
+  const file = join(process.cwd(), ".env");
+  if (!existsSync(file)) return;
+  for (const line of readFileSync(file, "utf8").split("\n")) {
+    const m = line.match(/^\s*([\w.-]+)\s*=\s*(.*)\s*$/);
+    if (!m) continue;
+    const key = m[1];
+    const val = m[2].replace(/^["']|["']$/g, "");
+    if (process.env[key] === undefined) process.env[key] = val;
+  }
+}
+loadDotEnv();
 import { getSupabaseAdmin } from "../lib/supabase-admin";
 import { searchByPhoto } from "../lib/photo-search";
 import { searchWebProducts } from "../lib/web-parser-search";
@@ -57,4 +72,16 @@ async function main() {
     }
   } finally { await releaseBotLock(supabase, lockToken); }
 }
-main().catch((error) => { console.error(error); process.exit(1); });
+
+async function runLoop() {
+  while (true) {
+    try {
+      await main();
+    } catch (error) {
+      console.error(error);
+    }
+    if (!process.env.BOT_LOOP) break;
+    await new Promise((resolve) => setTimeout(resolve, Number(process.env.BOT_INTERVAL_MS) || 10_000));
+  }
+}
+runLoop().catch((error) => { console.error(error); process.exit(1); });
