@@ -9,14 +9,11 @@ type Deal = {
   discount_percent: number;
   deal_score: number;
   deal_level: string;
-  ai_reason: string | null;
   products?: Array<{
     title: string;
     url: string;
     source: string | null;
     image_url: string | null;
-    rating: number | null;
-    reviews_count: number | null;
   }> | null;
 };
 
@@ -82,6 +79,8 @@ export default function AdminPage() {
     setAuthed(false);
     setDeals([]);
     setMetrics(null);
+    setUsername("");
+    setPassword("");
   }
 
   async function act(dealId: string, action: "approve" | "reject") {
@@ -104,86 +103,82 @@ export default function AdminPage() {
 
   if (authed === null) {
     return (
-      <main style={shell}>
-        <p style={{ textAlign: "center", color: "#8a7a6c" }}>Проверяем доступ…</p>
+      <main className="admin-main">
+        <p className="spiner-note">Проверяем доступ…</p>
       </main>
     );
   }
 
   if (!authed) {
     return (
-      <main style={{ ...shell, display: "grid", placeItems: "center", minHeight: "100vh" }}>
-        <form onSubmit={login} style={card(360)}>
-          <h1 style={{ fontSize: 22, margin: "0 0 6px" }}>Вход в админку</h1>
-          <p style={{ color: "#8a7a6c", fontSize: 14, margin: "0 0 18px" }}>Панель модератора «Мама, дешевле!»</p>
-          <input style={input} value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Логин" autoComplete="username" required />
-          <input style={input} type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Пароль" autoComplete="current-password" required />
-          <button type="submit" style={primaryBtn}>Войти</button>
-          {error && <p style={{ color: "#c2410c", fontSize: 14, margin: "12px 0 0" }}>{error}</p>}
+      <main className="auth-main">
+        <form className="auth-card" onSubmit={login}>
+          <h1>Панель модератора</h1>
+          <p className="hint">Мама, тут дешевле!</p>
+          <input className="field" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Логин" autoComplete="username" required />
+          <input className="field" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Пароль" autoComplete="current-password" required />
+          <button className="btn btn-primary" type="submit">Войти</button>
+          {error && <p className="err-note">{error}</p>}
         </form>
       </main>
     );
   }
 
   return (
-    <main style={shell}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 20 }}>
-        <h1 style={{ fontSize: 26, margin: 0 }}>🔥 Админ-панель</h1>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={() => setTab("deals")} style={tab === "deals" ? tabBtnActive : tabBtn}>Сделки</button>
-          <button onClick={() => setTab("settings")} style={tab === "settings" ? tabBtnActive : tabBtn}>Настройки</button>
-          <button onClick={logout} style={{ ...tabBtn, color: "#c2410c" }}>Выйти</button>
+    <main className="admin-main">
+      <div className="admin-top">
+        <h1>Модерация сделок</h1>
+        <div className="tabs">
+          <button className={tab === "deals" ? "btn btn-primary" : "btn btn-ghost"} onClick={() => setTab("deals")}>Сделки</button>
+          <button className={tab === "settings" ? "btn btn-primary" : "btn btn-ghost"} onClick={() => setTab("settings")}>Доступ</button>
+          <button className="btn btn-ghost" onClick={logout}>Выйти</button>
         </div>
       </div>
 
       {tab === "deals" ? (
         <>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+          <div className="metrics-row">
             {metrics ? (
               <>
-                <Metric label="Поисков за 24ч" value={metrics.searches24h} />
-                <Metric label="Клики за 24ч" value={metrics.clicks24h} />
-                <Metric label="Одобрено сделок" value={metrics.approvedDeals} />
+                <div className="metric"><div className="label">Поисков за 24ч</div><div className="value">{metrics.searches24h.toLocaleString("ru-RU")}</div></div>
+                <div className="metric"><div className="label">Клики за 24ч</div><div className="value">{metrics.clicks24h.toLocaleString("ru-RU")}</div></div>
+                <div className="metric"><div className="label">Одобрено сделок</div><div className="value">{metrics.approvedDeals.toLocaleString("ru-RU")}</div></div>
               </>
             ) : (
-              <span style={{ color: "#8a7a6c", fontSize: 14 }}>Метрики загружаются…</span>
+              <span className="hint">Метрики загружаются…</span>
             )}
           </div>
 
-          {error && <p style={{ color: "#c2410c" }}>{error}</p>}
+          {error && <p className="err-note">{error}</p>}
 
           {deals.length === 0 ? (
-            <p style={{ color: "#6b5d51", textAlign: "center", marginTop: 32 }}>
-              Нет предложений на модерации. Запусти фоновый Scout (npm run scout) — он найдёт выгодные сделки и принесёт их сюда.
-            </p>
+            <div className="empty-note">Нет предложений на модерации. Запустите Scout (npm run scout) — он найдёт выгодные сделки и принесёт их сюда.</div>
           ) : (
-            <div style={{ display: "grid", gap: 14 }}>
-              {deals.map((deal) => {
-                const product = Array.isArray(deal.products) ? deal.products[0] : deal.products;
-                if (!product) return null;
-                return (
-                  <div key={deal.id} style={{ ...card("100%"), display: "flex", gap: 14, alignItems: "center" }}>
-                    {product.image_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={product.image_url} alt={product.title} style={{ width: 80, height: 80, objectFit: "cover", borderRadius: 10 }} />
-                    ) : (
-                      <div style={{ width: 80, height: 80, borderRadius: 10, background: "#fff4ed" }} />
-                    )}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{product.title}</div>
-                      <div style={{ marginTop: 4, fontSize: 13, color: "#6b5d51" }}>
-                        {rub(deal.current_price)} ₽ <span style={{ textDecoration: "line-through" }}>было {rub(deal.reference_price)} ₽</span> · −{Math.round(Number(deal.discount_percent))}% · {product.source ?? ""}
-                      </div>
-                      <div style={{ marginTop: 2, fontSize: 12, color: "#b45309", fontWeight: 700 }}>AI Score: {deal.deal_score}/100 ({deal.deal_level})</div>
+            deals.map((deal) => {
+              const product = Array.isArray(deal.products) ? deal.products[0] : deal.products;
+              if (!product) return null;
+              return (
+                <div key={deal.id} className="deal-row">
+                  {product.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img className="thumb" src={product.image_url} alt={product.title} />
+                  ) : (
+                    <div className="thumb-empty" />
+                  )}
+                  <div className="info">
+                    <div className="t">{product.title}</div>
+                    <div className="d">
+                      {rub(deal.current_price)} ₽ <s>было {rub(deal.reference_price)} ₽</s> · −{Math.round(Number(deal.discount_percent))}% · {product.source ?? ""}
                     </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      <button onClick={() => act(deal.id, "approve")} disabled={busy === deal.id + "approve"} style={{ ...primaryBtn, background: "#1a7f37", padding: "8px 14px", fontSize: 14 }}>✅ Одобрить</button>
-                      <button onClick={() => act(deal.id, "reject")} disabled={busy === deal.id + "reject"} style={secondaryBtn}>❌ Отклонить</button>
-                    </div>
+                    <div className="s">AI Score: {deal.deal_score}/100</div>
                   </div>
-                );
-              })}
-            </div>
+                  <div className="actions">
+                    <button className="btn btn-green" onClick={() => act(deal.id, "approve")} disabled={busy === deal.id + "approve"}>Одобрить</button>
+                    <button className="btn btn-ghost" onClick={() => act(deal.id, "reject")} disabled={busy === deal.id + "reject"}>Отклонить</button>
+                  </div>
+                </div>
+              );
+            })
           )}
         </>
       ) : (
@@ -211,7 +206,7 @@ function SettingsTab({ onDone }: { onDone: (message: string | null) => void }) {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Не удалось сохранить");
-      setOk("Данные входа обновлены. Новый логин/пароль вступили в силу.");
+      setOk("Данные входа обновлены. Новый логин и пароль уже действуют.");
       setCurrent("");
       setNewUsername("");
       setNewPassword("");
@@ -221,79 +216,14 @@ function SettingsTab({ onDone }: { onDone: (message: string | null) => void }) {
   }
 
   return (
-    <form onSubmit={save} style={card(420)}>
-      <h2 style={{ fontSize: 20, margin: "0 0 6px" }}>Смена логина и пароля</h2>
-      <p style={{ color: "#8a7a6c", fontSize: 14, margin: "0 0 18px" }}>Оставь поле пустым, чтобы не менять его.</p>
-      <input style={input} type="password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder="Текущий пароль" autoComplete="current-password" required />
-      <input style={input} value={newUsername} onChange={(e) => setNewUsername(e.target.value)} placeholder="Новый логин (не менять — пусто)" autoComplete="username" />
-      <input style={input} type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Новый пароль (минимум 8 символов)" autoComplete="new-password" />
-      <button type="submit" style={primaryBtn}>Сохранить</button>
-      {ok && <p style={{ color: "#1a7f37", fontSize: 14, margin: "12px 0 0" }}>{ok}</p>}
+    <form className="form-card" onSubmit={save}>
+      <h2>Смена логина и пароля</h2>
+      <p className="hint">Оставьте поле пустым, чтобы не менять его. Пароль — минимум 8 символов.</p>
+      <input className="field" type="password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder="Текущий пароль" autoComplete="current-password" required />
+      <input className="field" value={newUsername} onChange={(e) => setNewUsername(e.target.value)} placeholder="Новый логин" autoComplete="username" />
+      <input className="field" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Новый пароль" autoComplete="new-password" />
+      <button className="btn btn-primary" type="submit">Сохранить</button>
+      {ok && <p className="ok-note">{ok}</p>}
     </form>
-  );
-}
-
-const shell: React.CSSProperties = { maxWidth: 900, margin: "0 auto", padding: "32px 20px 64px" };
-
-function card(width: number | string): React.CSSProperties {
-  return {
-    width,
-    display: "grid",
-    gap: 12,
-    background: "#fff",
-    borderRadius: 14,
-    border: "1px solid #ffe2d4",
-    padding: 22,
-    boxShadow: "0 4px 24px rgba(214,116,70,.08)",
-  };
-}
-
-const input: React.CSSProperties = {
-  padding: "12px 14px",
-  borderRadius: 10,
-  border: "1px solid #ffd2bd",
-  fontSize: 15,
-  outline: "none",
-};
-
-const primaryBtn: React.CSSProperties = {
-  padding: "12px 18px",
-  borderRadius: 10,
-  border: "none",
-  background: "#e8622c",
-  color: "#fff",
-  fontWeight: 700,
-  fontSize: 15,
-  cursor: "pointer",
-};
-
-const secondaryBtn: React.CSSProperties = {
-  padding: "8px 14px",
-  borderRadius: 10,
-  border: "1px solid #ffc7b3",
-  background: "#fff",
-  color: "#c2410c",
-  fontWeight: 600,
-  cursor: "pointer",
-};
-
-const tabBtn: React.CSSProperties = {
-  padding: "8px 14px",
-  borderRadius: 10,
-  border: "1px solid #ffd2bd",
-  background: "#fff",
-  color: "#6b5d51",
-  fontWeight: 600,
-  cursor: "pointer",
-};
-
-const tabBtnActive: React.CSSProperties = { ...tabBtn, background: "#e8622c", color: "#fff", border: "1px solid #e8622c" };
-
-function Metric({ label, value }: { label: string; value: number }) {
-  return (
-    <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #ffe2d4", padding: "12px 18px", minWidth: 140 }}>
-      <div style={{ fontSize: 13, color: "#8a7a6c" }}>{label}</div>
-      <div style={{ fontSize: 22, fontWeight: 800 }}>{value.toLocaleString("ru-RU")}</div>
-    </div>
   );
 }

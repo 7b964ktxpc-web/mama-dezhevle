@@ -49,7 +49,6 @@ export function LiveSearch() {
   const [stage, setStage] = useState("");
   const [elapsed, setElapsed] = useState(0);
   const [groups, setGroups] = useState<Group[]>([]);
-  const [statuses, setStatuses] = useState<{ source: string; label: string; status: string; count: number }[]>([]);
   const [durationMs, setDurationMs] = useState(0);
   const [expanded, setExpanded] = useState<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
@@ -71,7 +70,7 @@ export function LiveSearch() {
     setPhase("searching");
     setSources({});
     setGroups([]);
-    setStage("Запускаем поиск...");
+    setStage("Запускаем поиск");
     setElapsed(0);
     setDurationMs(0);
 
@@ -93,20 +92,19 @@ export function LiveSearch() {
           setSources((s) => ({ ...s, [event.source]: { status: "skipped", count: 0 } }));
           break;
         case "MATCHING_STARTED":
-          setStage("Сопоставляем одинаковые товары...");
+          setStage("Сопоставляем одинаковые товары");
           break;
         case "PRICE_CHECK_STARTED":
-          setStage("Проверяем цены и скидки...");
+          setStage("Считаем эффективные цены");
           break;
         case "VERIFICATION_STARTED":
-          setStage("Проверяем наличие и достоверность...");
+          setStage("Проверяем наличие и релевантность");
           break;
         case "BEST_DEAL_FOUND":
-          setStage(`Лучшее предложение: ${rub(event.price)} ₽`);
+          setStage(`Лучшее: ${rub(event.price)} ₽`);
           break;
         case "SEARCH_COMPLETED":
           setGroups(event.groups ?? []);
-          setStatuses(event.statuses ?? []);
           setDurationMs(event.durationMs ?? 0);
           setPhase("done");
           es.close();
@@ -119,115 +117,133 @@ export function LiveSearch() {
       }
     };
     es.onerror = () => {
-      if (phase === "searching") {
-        setPhase("failed");
-        setStage("Соединение прервалось");
-      }
+      setPhase((p) => (p === "searching" ? (setStage("Соединение прервалось"), "failed") : p));
       es.close();
     };
   }
 
   const sourceEntries = Object.entries(sources);
-  const doneCount = sourceEntries.filter(([, s]) => s.status === "ok").length;
-  const totalFound = sourceEntries.reduce((sum, [, s]) => sum + s.count, 0);
+  const okCount = sourceEntries.filter(([, s]) => s.status === "ok").length;
   const offersTotal = groups.reduce((sum, g) => sum + g.offerCount, 0);
 
   return (
-    <div>
-      <form onSubmit={run} style={{ display: "flex", gap: 8, maxWidth: 640, margin: "0 auto" }}>
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Зимний комбинезон мальчику 4 года до 7000 ₽"
-          style={{ flex: 1, padding: "12px 14px", borderRadius: 12, border: "1px solid #ffd2bd", fontSize: 15, outline: "none" }}
-        />
-        <button type="submit" disabled={phase === "searching"} style={{ padding: "12px 22px", borderRadius: 12, border: "none", background: phase === "searching" ? "#f0b894" : "#e8622c", color: "#fff", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>
-          {phase === "searching" ? "Ищем..." : "Найти 🔎"}
+    <div className="search-panel">
+      <form className="search-row" onSubmit={run}>
+        <label className="search-input">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Зимний комбинезон мальчику 4 года до 7000 ₽"
+            aria-label="Поисковый запрос"
+          />
+        </label>
+        <button className="btn btn-primary" type="submit" disabled={phase === "searching"}>
+          {phase === "searching" ? "Ищем…" : "Найти"}
         </button>
       </form>
 
       {phase === "searching" && (
-        <div style={{ marginTop: 24, padding: 20, background: "#fff8f4", borderRadius: 16, border: "1px solid #ffe2d4" }}>
-          <div style={{ fontWeight: 700, fontSize: 16 }}>🔎 Ищем лучшую цену</div>
-          <div style={{ marginTop: 4, color: "#8a7a6c", fontSize: 13 }}>{stage} · Проверяем {sourceEntries.length || "…"} источников</div>
-          <div style={{ marginTop: 12, display: "grid", gap: 6 }}>
+        <div className="progress">
+          <div className="progress-head">
+            <div>
+              <div className="progress-title">Ищем лучшую цену</div>
+              <div className="progress-stage">{stage}…</div>
+            </div>
+            <span className="timer">⏱ {clock(elapsed)}</span>
+          </div>
+          <div className="src-list">
             {sourceEntries.map(([id, s]) => (
-              <div key={id} style={{ display: "flex", justifyContent: "space-between", fontSize: 14 }}>
-                <span>
-                  {s.status === "ok" ? "✓" : s.status === "failed" ? "✗" : s.status === "skipped" ? "○" : "⟳"} {SOURCE_LABELS[id] ?? id}
-                </span>
-                <span style={{ color: s.status === "ok" ? "#1a7f37" : "#8a7a6c" }}>
-                  {s.status === "ok" ? `${s.count} предл.` : s.status === "pending" ? "ищем..." : s.status === "failed" ? "недоступен" : "пропущен"}
+              <div key={id} className="src">
+                <span className={`dot dot-${s.status}`} />
+                <span>{SOURCE_LABELS[id] ?? id}</span>
+                <span className={`count ${s.status === "ok" ? "" : "muted"}`}>
+                  {s.status === "ok" ? `${s.count} предл.` : s.status === "pending" ? "ищем…" : s.status === "failed" ? "недоступен" : "пропущен"}
                 </span>
               </div>
             ))}
           </div>
-          <div style={{ marginTop: 14, fontFamily: "monospace", fontSize: 15 }}>⏱ {clock(elapsed)}</div>
         </div>
       )}
 
       {phase === "done" && (
-        <div style={{ marginTop: 24 }}>
-          <div style={{ textAlign: "center", color: "#6b5d51", fontSize: 14 }}>
-            Проверено {doneCount} из {sourceEntries.length} источников · Найдено {offersTotal} предложений · Сопоставлено {groups.length} товаров{durationMs ? ` · ${clock(durationMs)}` : ""}
+        <>
+          <div className="results-meta">
+            <span>Проверено источников: {okCount} из {sourceEntries.length}</span>
+            <span>Найдено предложений: {offersTotal}</span>
+            <span>Сопоставлено товаров: {groups.length}</span>
+            {durationMs ? <span>Время: {clock(durationMs)}</span> : null}
           </div>
           {groups.length === 0 ? (
-            <p style={{ textAlign: "center", color: "#c2410c", marginTop: 20 }}>
-              Ничего не нашлось. Попробуй другой запрос или зайди позже — источники иногда отдыхают.
-            </p>
+            <div className="empty-note">
+              Ничего не нашлось. Попробуйте другой запрос или зайдите позже — источники иногда отдыхают.
+            </div>
           ) : (
-            <div style={{ marginTop: 20, display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+            <div className="results-grid">
               {groups.slice(0, 12).map((group, index) => {
                 const best = group.best;
                 const key = group.title.slice(0, 48) + index;
                 const open = expanded === key;
                 return (
-                  <div key={key} style={{ background: "#fff", borderRadius: 16, border: "1px solid #ffe2d4", padding: 16, boxShadow: "0 6px 18px rgba(214, 116, 70, 0.08)" }}>
-                    {index === 0 && <div style={{ fontSize: 12, color: "#b45309", fontWeight: 800, marginBottom: 6 }}>🏆 ЛУЧШЕЕ ПРЕДЛОЖЕНИЕ</div>}
-                    {best.image ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={best.image} alt={best.title} style={{ width: "100%", height: 150, objectFit: "cover", borderRadius: 10, marginBottom: 10 }} />
-                    ) : null}
-                    <div style={{ fontSize: 12, color: "#c2410c", fontWeight: 700 }}>
-                      {best.label}{best.seller ? ` · ${best.seller}` : ""}{best.dealScore != null ? ` · Score ${best.dealScore}/100` : ""}
+                  <article key={key} className={`product-card${index === 0 ? " best" : ""}`}>
+                    <div className="product-img">
+                      {best.image ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={best.image} alt={best.title} loading="lazy" />
+                      ) : (
+                        <div className="ph">фото нет</div>
+                      )}
+                      {index === 0 && <span className="ribbon">Лучшее</span>}
                     </div>
-                    <div style={{ fontWeight: 600, marginTop: 4, minHeight: 40 }}>{best.title}</div>
-                    <div style={{ marginTop: 8, display: "flex", alignItems: "baseline", gap: 8 }}>
-                      <span style={{ fontSize: 22, fontWeight: 800 }}>{rub(best.effectivePrice ?? best.price)} ₽</span>
-                      {best.oldPrice && best.oldPrice > best.price ? (
-                        <span style={{ fontSize: 13, color: "#9b8a7d", textDecoration: "line-through" }}>{rub(best.oldPrice)} ₽</span>
-                      ) : null}
-                    </div>
-                    {best.rating ? <div style={{ marginTop: 4, fontSize: 13, color: "#6b5d51" }}>⭐ {best.rating}</div> : null}
-                    <a href={best.url} target="_blank" rel="noopener noreferrer" style={{ display: "block", marginTop: 12, textAlign: "center", padding: "10px 0", borderRadius: 10, background: "#e8622c", color: "#fff", fontWeight: 700, textDecoration: "none" }}>
-                      🛒 Купить
-                    </a>
-                    {group.offers.length > 1 && (
-                      <button onClick={() => setExpanded(open ? null : key)} style={{ marginTop: 10, width: "100%", padding: "8px 0", borderRadius: 10, border: "1px solid #ffd2bd", background: "#fff", color: "#c2410c", fontWeight: 600, cursor: "pointer" }}>
-                        {open ? "Скрыть сравнение" : `Сравнить все (${group.offers.length})`}
-                      </button>
-                    )}
-                    {open && (
-                      <div style={{ marginTop: 10, display: "grid", gap: 6 }}>
-                        {group.offers.map((offer, i) => (
-                          <a key={offer.url + i} href={offer.url} target="_blank" rel="noopener noreferrer" style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "6px 8px", borderRadius: 8, background: "#fff8f4", textDecoration: "none", color: "inherit" }}>
-                            <span>{["🥇", "🥈", "🥉"][i] ?? "·"} {offer.label}</span>
-                            <span style={{ fontWeight: 700 }}>{rub(offer.effectivePrice ?? offer.price)} ₽</span>
-                          </a>
-                        ))}
+                    <div className="product-body">
+                      <div className="product-src">
+                        {best.label}{best.seller ? ` · ${best.seller}` : ""}
                       </div>
-                    )}
-                  </div>
+                      <div className="product-title">{best.title}</div>
+                      <div className="price-row">
+                        <span className="price">{rub(best.effectivePrice ?? best.price)} ₽</span>
+                        {best.oldPrice && best.oldPrice > best.price ? (
+                          <span className="price-old">{rub(best.oldPrice)} ₽</span>
+                        ) : null}
+                        {best.discountPercent ? (
+                          <span className="badge-discount">−{best.discountPercent}%</span>
+                        ) : null}
+                      </div>
+                      {best.rating ? <div className="product-rating">★ {best.rating}</div> : null}
+                      <a className="btn btn-buy" href={best.url} target="_blank" rel="noopener noreferrer">
+                        Купить
+                      </a>
+                      {group.offers.length > 1 && (
+                        <button className="compare-btn" onClick={() => setExpanded(open ? null : key)}>
+                          {open ? "Скрыть сравнение" : `Сравнить все (${group.offers.length})`}
+                        </button>
+                      )}
+                      {open && (
+                        <div className="compare-list">
+                          {group.offers.map((offer, i) => (
+                            <a key={offer.url + i} className="compare-row" href={offer.url} target="_blank" rel="noopener noreferrer">
+                              <span>
+                                <span className="medal">{["1", "2", "3"][i] ?? "·"}</span>
+                                {offer.label}
+                              </span>
+                              <span style={{ fontWeight: 700 }}>{rub(offer.effectivePrice ?? offer.price)} ₽</span>
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </article>
                 );
               })}
             </div>
           )}
-        </div>
+        </>
       )}
 
       {phase === "failed" && (
-        <div style={{ marginTop: 24, padding: 16, background: "#fff4f0", borderRadius: 12, border: "1px solid #ffc7b3", color: "#c2410c", textAlign: "center" }}>
-          Поиск не удался: {stage}. Попробуй ещё раз.
+        <div className="progress">
+          <div className="progress-title">Поиск не удался</div>
+          <div className="progress-stage">{stage}. Попробуйте ещё раз.</div>
         </div>
       )}
     </div>
