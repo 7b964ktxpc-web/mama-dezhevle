@@ -32,7 +32,10 @@ export async function GET(request: Request) {
             brand: group.brand,
             medianPrice: group.medianPrice,
             offerCount: group.offers.length,
-            best: group.best,
+            best: {
+              ...group.best,
+              label: SOURCE_LABELS[group.best.source] ?? group.best.source,
+            },
             offers: group.offers
               .filter((o) => o.verified)
               .slice(0, 6)
