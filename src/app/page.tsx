@@ -25,11 +25,18 @@ function rub(n: number) {
   return Math.round(n).toLocaleString("ru-RU");
 }
 
+const SOURCE_NAMES: Record<string, string> = {
+  detmir: "Детский мир",
+  wildberries: "Wildberries",
+  yandex_market: "Яндекс Маркет",
+  ozon: "Ozon",
+};
+
 function DealCard({ deal }: { deal: DealRow }) {
   const product = Array.isArray(deal.products) ? deal.products[0] : deal.products;
   if (!product) return null;
   const link = trackedUrlFor(deal.id, product.source, product.url);
-  const source = product.source === "detmir" ? "Детский мир" : product.source ?? "магазин";
+  const source = SOURCE_NAMES[product.source ?? ""] ?? product.source ?? "магазин";
 
   return (
     <a
@@ -44,7 +51,8 @@ function DealCard({ deal }: { deal: DealRow }) {
         padding: 16,
         textDecoration: "none",
         color: "inherit",
-        boxShadow: "0 6px 18px rgba(214, 116, 70, 0.08)",
+        boxShadow: "0 4px 24px rgba(214, 116, 70, 0.08)",
+        transition: "transform 150ms ease, box-shadow 150ms ease",
       }}
     >
       {product.image_url ? (
@@ -52,6 +60,7 @@ function DealCard({ deal }: { deal: DealRow }) {
         <img
           src={product.image_url}
           alt={product.title}
+          loading="lazy"
           style={{ width: "100%", height: 160, objectFit: "cover", borderRadius: 12, marginBottom: 10 }}
         />
       ) : null}
@@ -87,44 +96,50 @@ export default async function Home() {
       .select(
         "id, current_price, reference_price, discount_percent, deal_score, deal_level, products(title, url, source, image_url, rating, reviews_count)"
       )
+      .eq("status", "approved")
       .order("deal_score", { ascending: false })
-      .limit(36);
+      .limit(12);
     deals = (data as DealRow[] | null) ?? [];
-  } catch (e) {
-    error = e instanceof Error ? e.message : String(e);
+  } catch {
+    error = "db";
   }
 
   return (
-    <main style={{ maxWidth: 960, margin: "0 auto", padding: "40px 20px 64px" }}>
-      <header style={{ textAlign: "center", marginBottom: 24 }}>
-        <h1 style={{ fontSize: 34, margin: "0 0 6px" }}>Мама, дешевле! 🛍️</h1>
-        <p style={{ color: "#6b5d51", margin: 0 }}>ИИ ищет — мама экономит. Лучшие скидки на детские товары.</p>
+    <main style={{ maxWidth: 1080, margin: "0 auto", padding: "48px 20px 72px" }}>
+      <header style={{ textAlign: "center", marginBottom: 36 }}>
+        <div style={{ fontSize: 44, marginBottom: 8 }}>🛍️</div>
+        <h1 style={{ fontSize: 38, margin: "0 0 10px", letterSpacing: -0.5 }}>Мама, тут дешевле!</h1>
+        <p style={{ color: "#6b5d51", margin: "0 auto", maxWidth: 560, fontSize: 17 }}>
+          Родитель пишет обычным языком — ИИ сам ищет по маркетплейсам, сравнивает цены, скидки и наличие и показывает лучшие варианты.
+        </p>
       </header>
 
       <LiveSearch />
 
+      <section style={{ marginTop: 56, textAlign: "center", color: "#8a7a6c", fontSize: 14 }}>
+        Проверяем Wildberries · Ozon · Яндекс Маркет — реальными запросами, без выдуманных цен
+      </section>
+
       {error ? (
         <p style={{ color: "#c2410c", textAlign: "center", marginTop: 32 }}>
-          Не удалось загрузить предложения. Проверьте подключение к базе (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY).
+          Не удалось загрузить подборку. Проверьте подключение к базе (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY).
         </p>
-      ) : deals.length === 0 ? (
-        <p style={{ color: "#6b5d51", textAlign: "center", marginTop: 32 }}>
-          Пока нет опубликованных предложений. Запустите сборку каталога — и сюда прилетят первые сделки.
-        </p>
-      ) : (
-        <section
-          style={{
-            marginTop: 28,
-            display: "grid",
-            gap: 16,
-            gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-          }}
-        >
-          {deals.map((deal) => (
-            <DealCard key={deal.id} deal={deal} />
-          ))}
-        </section>
-      )}
+      ) : deals.length > 0 ? (
+        <>
+          <h2 style={{ marginTop: 64, marginBottom: 18, fontSize: 24 }}>🔥 Одобренные редакцией</h2>
+          <section
+            style={{
+              display: "grid",
+              gap: 16,
+              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+            }}
+          >
+            {deals.map((deal) => (
+              <DealCard key={deal.id} deal={deal} />
+            ))}
+          </section>
+        </>
+      ) : null}
     </main>
   );
 }

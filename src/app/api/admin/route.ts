@@ -3,15 +3,12 @@ import { getSupabaseAdmin } from "../../../lib/supabase-admin";
 import { buildDealPost } from "../../../lib/post-template";
 import { sendTelegramPost } from "../../../lib/telegram";
 import { trackedUrlFor } from "../../../lib/affiliate";
+import { getSessionUser, loginAdmin, createSessionToken, sessionCookie, updateCredentials } from "../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
-function authorized(request: Request) {
-  const expected = process.env.ADMIN_PASSWORD?.trim();
-  if (!expected) return true;
-  const url = new URL(request.url);
-  const provided = url.searchParams.get("key") ?? request.headers.get("x-admin-key") ?? "";
-  return provided === expected;
+function unauthorized() {
+  return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 }
 
 async function publishDealToChannel(dealId: string) {
@@ -64,12 +61,16 @@ async function publishDealToChannel(dealId: string) {
 }
 
 export async function GET(request: Request) {
-  if (!authorized(request)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const session = await getSessionUser(request);
+  if (!session) return unauthorized();
   const supabase = getSupabaseAdmin();
   const url = new URL(request.url);
   const action = url.searchParams.get("action");
 
   try {
+    if (action === "me") {
+      return NextResponse.json({ username: session.username });
+    }
     if (action === "metrics") {
       const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
       const [searches, clicks, dealsApproved] = await Promise.all([
@@ -97,15 +98,62 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (!authorized(request)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const url = new URL(request.url);
+  const action = url.searchParams.get("action");
+
+  // Public auth endpoints (rate limiting is delegated to the edge/host).
+  if (action === "login") {
+    try {
+      const body = await request.json();
+      const username = String(body.username ?? "").trim().slice(0, 64);
+      const password = String(body.password ?? "").slice(0, 128);
+      if (!username || !password) return NextResponse.json({ error: "Неверный логин или пароль" }, { status: 401 });
+      const session = await loginAdmin(username, password);
+      if (!session) return NextResponse.json({ error: "Неверный логин или пароль" }, { status: 401 });
+      const response = NextResponse.json({ ok: true, username: session.username });
+      response.cookies.set(sessionCookie.name, createSessionToken(session.userId, session.username), sessionCookie.options);
+      return response;
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });
+    }
+  }
+
+  const session = await getSessionUser(request);
+  if (!session) return unauthorized();
+
   try {
+    if (action === "logout") {
+      const response = NextResponse.json({ ok: true });
+      response.cookies.set(sessionCookie.name, "", { ...sessionCookie.options, maxAge: 0 });
+      return response;
+    }
+    if (action === "change-credentials") {
+      const body = await request.json();
+      const result = await updateCredentials(
+        session.userId,
+        String(body.currentPassword ?? ""),
+        String(body.newUsername ?? "").trim().slice(0, 64),
+        String(body.newPassword ?? ""),
+      );
+      if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 });
+      const response = NextResponse.json({ ok: true, username: body.newUsername || session.username });
+      if (String(body.newUsername ?? "").trim()) {
+        response.cookies.set(
+          sessionCookie.name,
+          createSessionToken(session.userId, String(body.newUsername).trim()),
+          sessionCookie.options,
+        );
+      }
+      return response;
+    }
+
     const body = await request.json();
     const dealId = String(body.dealId ?? "");
-    const action = String(body.action ?? "");
-    if (!dealId || !["approve", "reject"].includes(action)) {
+    const act = String(body.action ?? "");
+    if (!dealId || !["approve", "reject"].includes(act)) {
       return NextResponse.json({ error: "bad request" }, { status: 400 });
     }
-    if (action === "approve") {
+    if (act === "approve") {
       await publishDealToChannel(dealId);
       return NextResponse.json({ ok: true, published: true });
     }
