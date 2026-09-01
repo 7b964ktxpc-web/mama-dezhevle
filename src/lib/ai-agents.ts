@@ -62,7 +62,7 @@ function parseJson(text: string): ScoutDecision | null {
 async function callGroq(prompt: string): Promise<ScoutDecision | null> {
   const key = process.env.GROQ_API_KEY?.trim();
   if (!key) return null;
-  const model = process.env.GROQ_MODEL?.trim() || "llama-3.3-70b-versatile";
+  const model = process.env.GROQ_MODEL?.trim() || "openai/gpt-oss-120b";
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
