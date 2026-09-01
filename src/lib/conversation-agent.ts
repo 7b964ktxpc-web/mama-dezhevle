@@ -1,6 +1,7 @@
 import { getSupabaseAdmin } from "./supabase-admin";
 import { searchProducts } from "./product-search";
 import { searchWebProducts } from "./web-parser-search";
+import { scoutQuery } from "./ai-agents";
 
 export type ConversationReply = {
   text: string;
@@ -9,14 +10,10 @@ export type ConversationReply = {
 };
 
 function looksLikeSearch(text: string) {
-  return /\b(найди|ищи|поищи|подбери|нужн|купить|ищем|посоветуй|вариант|товар|дешевле|скидк|цен[ау]|руб|₽|размер|лет|года|год|мальчик|девочк|ботин|кроссов|обув|куртк|комбинезон|плать|штаны|игруш|рюкзак)\b/i.test(text);
-}
-
-function missingDetails(text: string) {
-  // Budget is optional: the bot must be able to search immediately and sort by
-  // price even when the parent did not specify a spending limit.
-  if (/(\d+(?:[.,]\d+)?)\s*(лет|год|года|г\.?)|\b(мальчик|девочк|сын|дочк)\b/i.test(text)) return [];
-  return ["Для какого возраста или роста ребёнка ищем?"];
+  // Broad product vocabulary is impossible to enumerate; only exclude obvious
+  // non-search chatter. Anything with real content is worth a search attempt.
+  if (/^(привет|здравствуй|здравствуйте|добрый|доброе|доброй|хай|hello|спасибо|благодарю|класс|отлично|супер|пока|да|нет|ок|ага|ну)\b/i.test(text)) return false;
+  return text.replace(/[^a-zа-яё0-9]/gi, "").length >= 3;
 }
 
 async function remember(userId: number | string, role: "user" | "assistant", text: string) {
@@ -40,46 +37,61 @@ async function history(userId: number | string) {
 
 function userContext(previous: Array<{ role: string; message_text: string }>, clean: string) {
   const userMessages = previous.filter((message) => message.role === "user").map((message) => message.message_text).filter(Boolean);
-  // A complete new request must not inherit the bot's welcome/example text or stale
-  // age/size values. Short follow-ups such as "а дешевле?" still use user history.
-  const standalone = clean.length >= 12 && /\b(найди|ищи|поищи|подбери|нужн|купить|товар|вариант|ботин|кроссов|обув|куртк|игруш|рюкзак)\b/i.test(clean);
+  // A complete new request must not inherit stale age/size values. Short
+  // follow-ups such as "а дешевле?" or "32" still use user history.
+  const standalone = clean.split(/\s+/).length >= 2 && clean.length >= 8;
   return standalone ? clean : [...userMessages, clean].join(" ");
 }
 
 export async function handleConversation(userId: number | string, text: string, onEvent?: (event: import("./kettu-gateway").SearchEvent) => void): Promise<ConversationReply> {
   const clean = text.trim();
-  await remember(userId, "user", clean);
   const previous = await history(userId);
+  await remember(userId, "user", clean);
   const searchText = userContext(previous, clean);
 
-  if (/^(привет|здравствуй|здравствуйте|добрый|доброе|доброй|хай|hello)\b/i.test(clean)) {
-    const reply = "Привет! 👋 Я помогу найти детские товары подешевле. Расскажи, что ищешь — можно совсем обычными словами. Например: «нужны кроссовки сыну 5 лет до 3000 ₽».";
+  const isGreeting = /^(привет|здравствуй|здравствуйте|добрый|доброе|доброй|хай|hello)\b/i.test(clean);
+  const isThanks = /^(спасибо|благодарю|класс|отлично|супер)\b/i.test(clean);
+
+  // AI Scout decides intent and builds a clean query when a key is configured.
+  // On any failure or absence it returns null and we fall back to regex rules.
+  const historyTexts = previous.filter((m) => m.role === "user").map((m) => m.message_text).slice(-4);
+  const scout = isGreeting || isThanks ? null : await scoutQuery(clean, historyTexts);
+
+  if (isGreeting) {
+    const reply = scout?.reply?.trim() || "Привет! 👋 Я помогу найти детские товары подешевле. Расскажи, что ищешь — можно совсем обычными словами. Например: «нужны кроссовки сыну 5 лет до 3000 ₽».";
     await remember(userId, "assistant", reply);
     return { text: reply };
   }
 
-  if (/^(спасибо|благодарю|класс|отлично|супер)\b/i.test(clean)) {
+  if (isThanks) {
     const reply = "Пожалуйста ❤️ Если хочешь, могу ещё поискать дешевле или подобрать похожие варианты.";
     await remember(userId, "assistant", reply);
     return { text: reply };
   }
 
-  if (!looksLikeSearch(clean)) {
+  if (scout && !scout.isSearch) {
+    const reply = scout.reply?.trim() || "Расскажи, что ищем для ребёнка — подберу и сравню цены 🙂";
+    await remember(userId, "assistant", reply);
+    return { text: reply };
+  }
+
+  if (scout?.needsClarification && !scout.query) {
+    const reply = scout.needsClarification;
+    await remember(userId, "assistant", reply);
+    return { text: reply };
+  }
+
+  const effectiveQuery = scout?.isSearch && scout.query ? scout.query : searchText;
+
+  if (!scout && !looksLikeSearch(clean)) {
     const reply = "Конечно 🙂 Расскажи немного подробнее, что нужно ребёнку. Я могу подобрать товар, сравнить цены и поискать вариант дешевле.";
     await remember(userId, "assistant", reply);
     return { text: reply };
   }
 
-  const missing = missingDetails(searchText);
-  if (missing.length) {
-    const reply = missing[0];
-    await remember(userId, "assistant", reply);
-    return { text: reply };
-  }
-
   try {
-    console.log(JSON.stringify({ event: "product_search", userId, query: clean, effectiveQuery: searchText }));
-    const [catalog, web] = await Promise.all([searchProducts(searchText, 5), searchWebProducts(searchText, 8, onEvent)]);
+    console.log(JSON.stringify({ event: "product_search", userId, query: clean, effectiveQuery, ai: Boolean(scout) }));
+    const [catalog, web] = await Promise.all([searchProducts(effectiveQuery, 5), searchWebProducts(effectiveQuery, 8, onEvent)]);
     const results = [...catalog, ...web].filter((item: any, index: number, all: any[]) => item?.url ? all.findIndex((x) => x?.url === item.url) === index : true).slice(0, 8);
     const reply = results.length ? `Нашла ${results.length} вариантов. Сейчас покажу самые интересные 👇` : "По этому запросу пока не нашла подходящих вариантов. Давай уточним товар, размер или бюджет?";
     await remember(userId, "assistant", reply);

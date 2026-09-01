@@ -206,12 +206,12 @@ export const SOURCE_DEFS: SourceDef[] = [
   },
   {
     id: "megamarket", label: "Мегамаркет", tool: "megamarket_search", selfcheckTool: "megamarket_selfcheck", needsChrome: true, textSearch: true,
-    args: (query, limit) => ({ query, limit: Math.min(Math.max(limit * 2, 5), 20) }),
+    args: (query) => ({ query }),
     map: simpleMap("megamarket", "item_id", "title", "price_rub", "old_price_rub"),
   },
   {
     id: "ozon", label: "Ozon", tool: "ozon_search", selfcheckTool: "ozon_selfcheck", needsChrome: true, textSearch: true,
-    args: (query, limit) => ({ query, limit: Math.min(Math.max(limit * 2, 5), 20) }),
+    args: (query) => ({ query }),
     map: (payload) =>
       (payload.items ?? []).map((item) => ({
         source: "ozon",
@@ -232,7 +232,7 @@ export const SOURCE_DEFS: SourceDef[] = [
   },
   {
     id: "lamoda", label: "Lamoda", tool: "lamoda_search", selfcheckTool: "lamoda_selfcheck", needsChrome: true, textSearch: true,
-    args: (query, limit) => ({ query, limit: Math.min(Math.max(limit * 2, 5), 20) }),
+    args: (query) => ({ query }),
     map: simpleMap("lamoda", "sku", "title", "price_rub", "old_price_rub"),
   },
   {
@@ -274,6 +274,22 @@ export function activeSourceDefs(): SourceDef[] {
 const cache = new Map<string, { ts: number; result: GatewayResult }>();
 const inflight = new Map<string, Promise<GatewayResult>>();
 
+// Chrome/CDP is a single shared browser: hammering it with 7 concurrent
+// playwright sessions makes every source time out. Anonymous HTTP sources run
+// fully parallel; browser-backed ones go through a small pool.
+async function mapPool<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(size, items.length) }, async () => {
+    while (next < items.length) {
+      const idx = next++;
+      results[idx] = await fn(items[idx]);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 export async function gatewaySearch(
   query: string,
   opts: { limit?: number; onEvent?: (event: SearchEvent) => void } = {},
@@ -300,11 +316,12 @@ export async function gatewaySearch(
     const defs = activeSourceDefs();
     emit({ type: "SEARCH_STARTED", searchId, query, sources: defs.map((d) => d.id) });
     const statuses: SourceStatus[] = [];
-    const offerLists = await Promise.all(defs.map(async (def) => {
+    const runDef = async (def: SourceDef): Promise<Offer[]> => {
       emit({ type: "SOURCE_STARTED", source: def.id });
       const t0 = Date.now();
+      const timeout = def.needsChrome ? Number(process.env.KETTU_CHROME_TIMEOUT_MS) || 25000 : sourceTimeoutMs();
       try {
-        const payload = await callKettu<ItemsPayload>(def.tool, def.args(query, limit));
+        const payload = await callKettu<ItemsPayload>(def.tool, def.args(query, limit), timeout);
         const offers = payload ? def.map(payload) : [];
         statuses.push({ source: def.id, label: def.label, status: offers.length ? "ok" : "empty", count: offers.length, ms: Date.now() - t0 });
         emit({ type: "SOURCE_COMPLETED", source: def.id, count: offers.length, ms: Date.now() - t0 });
@@ -315,7 +332,13 @@ export async function gatewaySearch(
         emit({ type: "SOURCE_FAILED", source: def.id, error: message.slice(0, 120), ms: Date.now() - t0 });
         return [] as Offer[];
       }
-    }));
+    };
+    const anonDefs = defs.filter((d) => !d.needsChrome);
+    const chromeDefs = defs.filter((d) => d.needsChrome);
+    const offerLists = [
+      ...(await Promise.all(anonDefs.map(runDef))),
+      ...(await mapPool(chromeDefs, 2, runDef)),
+    ];
 
     const offers = offerLists.flat().filter((o) => o.currency === "RUB");
     emit({ type: "MATCHING_STARTED", offers: offers.length });
