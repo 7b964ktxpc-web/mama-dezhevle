@@ -124,6 +124,40 @@ export async function callKettu<T>(tool: string, args: Record<string, unknown>, 
 
 const now = () => new Date().toISOString();
 
+// Verifier stage 2: marketplace search engines routinely mix hats and mittens
+// into a "jacket" query. The primary product word of the query must appear in
+// the offer title (crude stem match); unrelated items are dropped. If nothing
+// survives we keep the raw list rather than leaving the parent empty-handed.
+const STOP_WORDS = new Set([
+  "для", "на", "до", "под", "перед", "лет", "года", "год", "году", "летом", "зимой",
+  "мальчик", "мальчику", "мальчика", "девочка", "девочке", "девочки", "дочери", "сына", "сыну",
+  "ребенок", "ребенку", "ребенка", "ребенком", "малыша", "малышу", "малыш",
+  "размер", "размеру", "росту", "рост", "руб", "рублей", "бюджет", "цена", "цене",
+  "нужен", "нужна", "нужно", "нужны", "купить", "найди", "ищу", "ищем", "подбери", "поищи",
+  "дешевле", "дешевые", "дешевый", "выгодно", "выгодные", "хочу", "надо", "пожалуйста",
+  "осень", "осенью", "зима", "весна", "летний", "зимний", "осенний",
+]);
+
+function normalizeWord(word: string): string {
+  return word.toLowerCase().replace(/ё/g, "е").replace(/[^a-zа-я0-9]/g, "");
+}
+
+function primaryStem(query: string): string | null {
+  for (const raw of query.split(/[\s,]+/)) {
+    const word = normalizeWord(raw);
+    if (word.length < 4 || STOP_WORDS.has(word)) continue;
+    return word.slice(0, Math.max(4, word.length - 2));
+  }
+  return null;
+}
+
+export function filterRelevant(offers: Offer[], query: string): { kept: Offer[]; dropped: number } {
+  const stem = primaryStem(query);
+  if (!stem) return { kept: offers, dropped: 0 };
+  const kept = offers.filter((offer) => normalizeWord(offer.title).includes(stem));
+  return kept.length ? { kept, dropped: offers.length - kept.length } : { kept: offers, dropped: 0 };
+}
+
 function toNumber(value: unknown): number | null {
   if (value == null) return null;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
@@ -346,7 +380,8 @@ export async function gatewaySearch(
       ...(await mapPool(chromeDefs, 2, runDef)),
     ];
 
-    const offers = offerLists.flat().filter((o) => o.currency === "RUB");
+    const rawOffers = offerLists.flat().filter((o) => o.currency === "RUB");
+    const { kept: offers, dropped } = filterRelevant(rawOffers, query);
     emit({ type: "MATCHING_STARTED", offers: offers.length });
     const groups = groupOffers(offers);
     emit({ type: "PRICE_CHECK_STARTED" });
@@ -361,7 +396,7 @@ export async function gatewaySearch(
     console.log(JSON.stringify({
       event: "gateway_search", searchId, query, durationMs,
       sources: statuses.map((s) => `${s.source}:${s.status}:${s.count}`),
-      offers: offers.length, groups: groups.length,
+      offers: offers.length, groups: groups.length, irrelevantDropped: dropped,
       best_price: best ? best.best.effectivePrice ?? best.best.price : null,
       errors: statuses.filter((s) => s.status === "failed").map((s) => s.error),
     }));
