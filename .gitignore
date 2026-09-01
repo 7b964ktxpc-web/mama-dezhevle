@@ -12,3 +12,4 @@ supabase/.temp/
 tsconfig.tsbuildinfo
 package-lock.json
 supabase/config.toml
+.vercel
