@@ -6,6 +6,7 @@ import { searchDuckDuckGo } from "./web-search-free";
 import { searchYandexMarket } from "./yandex-market-search";
 import { searchOzonDirect } from "./sources/ozon-search";
 import { searchWildberriesDirect } from "./sources/wildberries-search";
+import { searchViaKettu } from "./kettu-search";
 
 export type WebParserSearchResult = SearchResult & {
   source?: string;
@@ -52,14 +53,17 @@ export async function searchWebParser(query: string, limit = 5): Promise<WebPars
 
 // Public name for the Telegram/conversation layer. Order of fallback:
 // 1) external parser microservice (if PARSER_API_URL configured),
-// 2) Yandex Market Partner API (YANDEX_MARKET_API_KEY/BUSINESS_ID) — real search,
-// 3) Ozon Partner API (if OZON_PARTNER_CLIENT_ID/KEY set) — free, real prices,
-// 4) AI web search — Gemini (GEMINI_API_KEY) or OpenAI (OPENAI_API_KEY) — "ИИ ищет",
-// 5) direct marketplace scraping (anti-bot may block it in some environments),
-// 6) keyless DuckDuckGo links (last resort; may be empty).
+// 2) kettu-marketplace-mcp (KETTU_DIR set) — WB + Yandex Market anonymous search,
+// 3) Yandex Market Partner API (YANDEX_MARKET_API_KEY/BUSINESS_ID) — real search,
+// 4) Ozon Partner API (if OZON_PARTNER_CLIENT_ID/KEY set) — free, real prices,
+// 5) AI web search — Gemini (GEMINI_API_KEY) or OpenAI (OPENAI_API_KEY) — "ИИ ищет",
+// 6) direct marketplace scraping (anti-bot may block it in some environments),
+// 7) keyless DuckDuckGo links (last resort; may be empty).
 export async function searchWebProducts(query: string, limit = 5): Promise<SearchResult[]> {
   const base = parserUrl();
   if (base) return searchWebParser(query, limit);
+  const kettu = await searchViaKettu(query, limit);
+  if (kettu.length) return kettu;
   const yamarket = await searchYandexMarket(query, limit);
   if (yamarket.length) return yamarket;
   const ozonDirect = await searchOzonDirect(query, limit);
