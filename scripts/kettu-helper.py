@@ -1,5 +1,7 @@
 ﻿import sys, json, asyncio, importlib
 
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 MODULES = {
     "detmir_categories": "detmir_connector.server", "detmir_category": "detmir_connector.server",
     "detmir_card": "detmir_connector.server", "detmir_selfcheck": "detmir_connector.server",

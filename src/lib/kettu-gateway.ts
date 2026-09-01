@@ -264,11 +264,17 @@ export const SOURCE_DEFS: SourceDef[] = [
   },
 ];
 
+// Browser-backed sources verified to work with the CDP profile. The rest
+// (megamarket/lamoda/dns/citilink/avito/taobao) are currently blocked by
+// anti-bot on the fresh profile and only slow every search down; they stay
+// registered for health checks and can be re-enabled via KETTU_SOURCES.
+const CHROME_WHITELIST = new Set(["ozon"]);
+
 export function activeSourceDefs(): SourceDef[] {
   const override = process.env.KETTU_SOURCES?.trim();
   const ids = override ? override.split(",").map((s) => s.trim()).filter(Boolean) : null;
   const defs = ids ? SOURCE_DEFS.filter((d) => ids.includes(d.id)) : SOURCE_DEFS;
-  return defs.filter((d) => d.textSearch && (!d.needsChrome || chromeEnabled()));
+  return defs.filter((d) => d.textSearch && (!d.needsChrome || (chromeEnabled() && CHROME_WHITELIST.has(d.id))));
 }
 
 const cache = new Map<string, { ts: number; result: GatewayResult }>();
