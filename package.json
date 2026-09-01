@@ -15,7 +15,8 @@
     "publish": "tsx src/jobs/publish.ts",
     "bot": "tsx src/jobs/bot.ts",
     "test:feed": "tsx src/jobs/test-feed.ts",
-    "test:price-alerts": "tsx src/jobs/test-price-alerts.ts"
+    "test:price-alerts": "tsx src/jobs/test-price-alerts.ts",
+    "scout": "tsx src/jobs/scout.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "latest",

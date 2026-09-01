@@ -1,6 +1,6 @@
 import { getSupabaseAdmin } from "../lib/supabase-admin";
 import { trackedUrlFor } from "../lib/affiliate";
-import { SearchBar } from "../components/SearchBar";
+import { LiveSearch } from "../components/LiveSearch";
 
 export const dynamic = "force-dynamic";
 
@@ -101,7 +101,7 @@ export default async function Home() {
         <p style={{ color: "#6b5d51", margin: 0 }}>ИИ ищет — мама экономит. Лучшие скидки на детские товары.</p>
       </header>
 
-      <SearchBar />
+      <LiveSearch />
 
       {error ? (
         <p style={{ color: "#c2410c", textAlign: "center", marginTop: 32 }}>
