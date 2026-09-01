@@ -67,6 +67,7 @@ export async function searchYandexMarket(query: string, limit = 10): Promise<Sea
         const priceObj = (item.price ?? {}) as { value?: number; currencyId?: string };
         const price = toRubles(priceObj.value);
         const url = String(item.url ?? "");
+        const shop = String(item.shopName ?? item.businessName ?? item.shop ?? "").trim();
         return {
           id: `yamarket-${String(item.offerId ?? Math.random().toString(36).slice(2, 8))}`,
           title: pickName(item),
@@ -74,7 +75,7 @@ export async function searchYandexMarket(query: string, limit = 10): Promise<Sea
           oldPrice: null,
           rating: item.rating != null ? Number(item.rating) : null,
           url,
-          source: "Яндекс Маркет",
+          source: shop || "Яндекс Маркет",
           verified: Boolean(url),
           verificationStatus: "api",
         };
