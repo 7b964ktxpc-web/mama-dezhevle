@@ -20,7 +20,7 @@ import { searchWebProducts } from "../lib/web-parser-search";
 import { handleConversation } from "../lib/conversation-agent";
 import { addPriceAlert, removePriceAlert } from "../lib/price-alerts";
 import { trackedUrlFor } from "../lib/affiliate";
-import { answerTelegramCallback, deleteTelegramWebhook, getTelegramPhotoUrl, getTelegramUpdates, mainMenuKeyboard, normalizeSearchQuery, parseUnwatchCommand, parseWatchCommand, resultKeyboard, sendTelegramBotMessage, startText, supportKeyboard } from "../lib/telegram-bot";
+import { answerTelegramCallback, deleteTelegramWebhook, editTelegramMessage, getTelegramPhotoUrl, getTelegramUpdates, mainMenuKeyboard, normalizeSearchQuery, parseUnwatchCommand, parseWatchCommand, resultKeyboard, sendTelegramBotMessage, startText, supportKeyboard } from "../lib/telegram-bot";
 
 function formatResult(item: any, index: number) { return `${index + 1}. ${item.title}\n💰 ${Math.round(Number(item.price)).toLocaleString("ru-RU")} ₽${item.oldPrice && item.oldPrice > item.price ? ` (было ${Math.round(Number(item.oldPrice)).toLocaleString("ru-RU")} ₽)` : ""}${item.rating ? ` ⭐ ${item.rating}` : ""}${item.source ? `\n🏪 ${item.source}` : ""}`; }
 async function sendResults(chatId: number, results: any[]) { if (!results.length) return sendTelegramBotMessage(chatId, "🔎 Пока ничего подходящего не нашла. Попробуй изменить запрос или бюджет.", supportKeyboard()); for (const [index, item] of results.slice(0, 8).entries()) await sendTelegramBotMessage(chatId, formatResult(item, index), resultKeyboard(item)); }
@@ -67,8 +67,53 @@ async function main() {
       if (text === "/watches") { await sendWatchesList(supabase, message.chat.id, userId); continue; }
       if (message.photo?.length) { try { await sendTelegramBotMessage(message.chat.id, "📸 Смотрю на фото…"); const largestPhoto = [...message.photo].sort((a, b) => b.width * b.height - a.width * a.height)[0]; if (!largestPhoto) continue; const photoSearch = await searchByPhoto(await getTelegramPhotoUrl(largestPhoto.file_id), 5); const detected = photoSearch.analysis.query; const webResults = await searchWebProducts(detected, 5); await sendTelegramBotMessage(message.chat.id, `👀 Похоже, ищем: ${detected}`); await sendResults(message.chat.id, [...photoSearch.results, ...webResults]); } catch (error) { console.error("Photo search failed", error); await sendTelegramBotMessage(message.chat.id, "Не смогла распознать фото. Попробуй более чёткое фото или опиши товар словами.", mainMenuKeyboard()); } continue; }
       if (!text) continue;
-      const result = await handleConversation(userId, text);
-      if (result.results) await sendResults(message.chat.id, result.results); else await sendTelegramBotMessage(message.chat.id, result.text, mainMenuKeyboard());
+      const SOURCE_LABELS: Record<string, string> = { wildberries: "Wildberries", yandex_market: "Яндекс Маркет", megamarket: "Мегамаркет", ozon: "Ozon", lamoda: "Lamoda", dns: "DNS", citilink: "Ситилинк", avito: "Avito", taobao: "Taobao", detmir: "Детский мир" };
+      const progressLines = new Map<string, string>();
+      const startedAt = Date.now();
+      let progressMessageId: number | undefined;
+      let lastEditAt = 0;
+      const renderProgress = () => {
+        const secs = Math.floor((Date.now() - startedAt) / 1000);
+        const timer = `⏱ ${String(Math.floor(secs / 60)).padStart(2, "0")}:${String(secs % 60).padStart(2, "0")}`;
+        return `🔎 Ищу лучшую цену...\n\n${[...progressLines.values()].join("\n")}\n\n${timer}`;
+      };
+      const editProgress = async (force = false) => {
+        if (!progressMessageId) return;
+        if (!force && Date.now() - lastEditAt < 1800) return;
+        lastEditAt = Date.now();
+        try { await editTelegramMessage(message.chat.id, progressMessageId, renderProgress()); } catch { /* ignore edit failures, the interval will retry */ }
+      };
+      const onEvent = (event: any) => {
+        if (event.type === "SEARCH_STARTED") {
+          void sendTelegramBotMessage(message.chat.id, "🔎 Ищу лучшую цену...\n\n⏱ 00:00")
+            .then((sent: any) => { progressMessageId = sent?.message_id; void editProgress(true); })
+            .catch(() => {});
+          return;
+        }
+        const label = SOURCE_LABELS[event.source] ?? event.source;
+        if (event.type === "SOURCE_STARTED") progressLines.set(event.source, `⟳ ${label} — ищем…`);
+        else if (event.type === "SOURCE_COMPLETED") progressLines.set(event.source, `✓ ${label} — ${event.count}`);
+        else if (event.type === "SOURCE_FAILED") progressLines.set(event.source, `✗ ${label}`);
+        else if (event.type === "SOURCE_SKIPPED") progressLines.set(event.source, `⚠️ ${label} — ${event.reason}`);
+        else if (event.type === "MATCHING_STARTED") progressLines.set("matching", "⟳ Сопоставляю товары…");
+        else if (event.type === "PRICE_CHECK_STARTED") { progressLines.set("matching", "✓ Сопоставили товары"); progressLines.set("price", "⟳ Проверяю цены и скидки…"); }
+        else if (event.type === "VERIFICATION_STARTED") progressLines.set("price", "✓ Проверили цены и наличие");
+        else if (event.type === "BEST_DEAL_FOUND") progressLines.set("best", `🎯 Лучшее: ${Math.round(event.price).toLocaleString("ru-RU")} ₽`);
+        void editProgress();
+      };
+      const progressTimer = setInterval(() => { void editProgress(); }, 2000);
+      let result;
+      try {
+        result = await handleConversation(userId, text, onEvent);
+      } finally {
+        clearInterval(progressTimer);
+      }
+      if (progressMessageId) {
+        const secs = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
+        const finalText = result.results?.length ? `✓ Готово за ${secs} сек. Показываю лучшие варианты 👇` : result.text;
+        try { await editTelegramMessage(message.chat.id, progressMessageId, finalText, mainMenuKeyboard()); } catch { /* ignore */ }
+      }
+      if (result.results) await sendResults(message.chat.id, result.results); else if (!progressMessageId) await sendTelegramBotMessage(message.chat.id, result.text, mainMenuKeyboard());
     }
   } finally { await releaseBotLock(supabase, lockToken); }
 }

@@ -58,6 +58,10 @@ export async function sendTelegramBotMessage(chatId: number | string, text: stri
   return telegramCall("sendMessage", { chat_id: chatId, text, disable_web_page_preview: false, ...(replyMarkup ? { reply_markup: replyMarkup } : {}) });
 }
 
+export async function editTelegramMessage(chatId: number | string, messageId: number, text: string, replyMarkup?: Record<string, unknown>) {
+  return telegramCall("editMessageText", { chat_id: chatId, message_id: messageId, text, ...(replyMarkup ? { reply_markup: replyMarkup } : {}) });
+}
+
 export async function answerTelegramCallback(callbackQueryId: string, text?: string) {
   return telegramCall("answerCallbackQuery", { callback_query_id: callbackQueryId, ...(text ? { text, show_alert: false } : {}) });
 }

@@ -46,7 +46,7 @@ function userContext(previous: Array<{ role: string; message_text: string }>, cl
   return standalone ? clean : [...userMessages, clean].join(" ");
 }
 
-export async function handleConversation(userId: number | string, text: string): Promise<ConversationReply> {
+export async function handleConversation(userId: number | string, text: string, onEvent?: (event: import("./kettu-gateway").SearchEvent) => void): Promise<ConversationReply> {
   const clean = text.trim();
   await remember(userId, "user", clean);
   const previous = await history(userId);
@@ -79,7 +79,7 @@ export async function handleConversation(userId: number | string, text: string):
 
   try {
     console.log(JSON.stringify({ event: "product_search", userId, query: clean, effectiveQuery: searchText }));
-    const [catalog, web] = await Promise.all([searchProducts(searchText, 5), searchWebProducts(searchText, 8)]);
+    const [catalog, web] = await Promise.all([searchProducts(searchText, 5), searchWebProducts(searchText, 8, onEvent)]);
     const results = [...catalog, ...web].filter((item: any, index: number, all: any[]) => item?.url ? all.findIndex((x) => x?.url === item.url) === index : true).slice(0, 8);
     const reply = results.length ? `Нашла ${results.length} вариантов. Сейчас покажу самые интересные 👇` : "По этому запросу пока не нашла подходящих вариантов. Давай уточним товар, размер или бюджет?";
     await remember(userId, "assistant", reply);

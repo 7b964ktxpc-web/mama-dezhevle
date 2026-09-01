@@ -59,10 +59,10 @@ export async function searchWebParser(query: string, limit = 5): Promise<WebPars
 // 5) AI web search — Gemini (GEMINI_API_KEY) or OpenAI (OPENAI_API_KEY) — "ИИ ищет",
 // 6) direct marketplace scraping (anti-bot may block it in some environments),
 // 7) keyless DuckDuckGo links (last resort; may be empty).
-export async function searchWebProducts(query: string, limit = 5): Promise<SearchResult[]> {
+export async function searchWebProducts(query: string, limit = 5, onEvent?: (event: import("./kettu-gateway").SearchEvent) => void): Promise<SearchResult[]> {
   const base = parserUrl();
   if (base) return searchWebParser(query, limit);
-  const kettu = await searchViaKettu(query, limit);
+  const kettu = await searchViaKettu(query, limit, onEvent);
   if (kettu.length) return kettu;
   const yamarket = await searchYandexMarket(query, limit);
   if (yamarket.length) return yamarket;
