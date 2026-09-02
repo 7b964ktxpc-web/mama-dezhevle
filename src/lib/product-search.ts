@@ -20,6 +20,7 @@ export type SearchResult = {
   source?: string;
   verified?: boolean;
   verificationStatus?: string;
+  promo?: string | null;
 };
 
 export function parseSearchQuery(query: string): SearchFilters {

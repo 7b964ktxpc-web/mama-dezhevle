@@ -446,6 +446,15 @@ a { color: inherit; }
   color: var(--muted);
 }
 
+.payment-terms {
+  font-size: 12px;
+  color: var(--ink-soft);
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 6px 8px;
+  line-height: 1.4;
+}
+
 .btn-buy {
   margin-top: 10px;
   background: var(--ink);

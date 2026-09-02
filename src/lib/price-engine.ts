@@ -4,6 +4,10 @@ import type { ProductGroup } from "./product-matcher";
 // Effective price = base price + mandatory costs known to us. Delivery and
 // promo data is not returned by every source; when unknown we keep the field
 // null and never invent a number (spec: no fake data).
+// MIN_DISCOUNT: a strikethrough within 3% of the price is marketplace noise
+// (rounding, split-payment display), not a real discount — never score it.
+export const MIN_DISCOUNT_PERCENT = 3;
+
 export function effectivePrice(offer: { price: number; deliveryPrice?: number | null }): number {
   return Math.round(offer.price + (offer.deliveryPrice ?? 0));
 }
@@ -21,10 +25,10 @@ export function applyPriceEngine(groups: ProductGroup[]): void {
     const marketMedian = median(prices);
     for (const offer of group.offers) {
       offer.effectivePrice = effectivePrice(offer);
-      offer.discountPercent =
-        offer.oldPrice && offer.oldPrice > offer.price
-          ? Math.round((1 - offer.price / offer.oldPrice) * 100)
-          : null;
+      const rawDiscount = offer.oldPrice && offer.oldPrice > offer.price
+        ? (1 - offer.price / offer.oldPrice) * 100
+        : 0;
+      offer.discountPercent = rawDiscount >= MIN_DISCOUNT_PERCENT ? Math.round(rawDiscount) : null;
       if (!Number.isFinite(offer.price) || offer.price <= 0) {
         offer.verified = false;
         offer.verificationStatus = "bad_price";

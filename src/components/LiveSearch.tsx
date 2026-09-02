@@ -15,6 +15,7 @@ type Offer = {
   rating?: number | null;
   effectivePrice?: number;
   dealScore?: number | null;
+  promo?: string | null;
 };
 
 type Group = {
@@ -217,6 +218,7 @@ export function LiveSearch() {
                         ) : null}
                       </div>
                       {best.rating ? <div className="product-rating">★ {best.rating}</div> : null}
+                      {best.promo ? <div className="payment-terms">💳 {best.promo} — только при этом способе оплаты</div> : null}
                       <a
                         className="btn btn-buy"
                         href={best.url}

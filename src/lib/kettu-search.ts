@@ -36,6 +36,7 @@ export async function searchViaKettu(
         source: offer.seller ? `${SOURCE_LABELS[offer.source] ?? offer.source}: ${offer.seller}` : SOURCE_LABELS[offer.source] ?? offer.source,
         verified: offer.verified,
         verificationStatus: offer.verificationStatus,
+        promo: offer.promo ?? null,
       });
     }
     if (rows.length >= limit) break;
