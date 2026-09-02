@@ -685,9 +685,7 @@ a { color: inherit; }
 .deal-row .t {
   font-weight: 600;
   font-size: 15px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.35;
 }
 
 .deal-row .d { font-size: 13px; color: var(--ink-soft); margin-top: 3px; }
@@ -695,6 +693,14 @@ a { color: inherit; }
 .deal-row .s { font-size: 12px; color: var(--accent-deep); font-weight: 800; margin-top: 3px; }
 
 .deal-row .actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+
+@media (max-width: 520px) {
+  .deal-row { padding: 12px; }
+  .deal-row .thumb, .deal-row .thumb-empty { width: 56px; height: 56px; }
+  .btn { min-height: 44px; }
+  .tabs { flex-wrap: wrap; }
+  .admin-top { flex-direction: column; align-items: flex-start; }
+}
 
 .auth-main {
   min-height: 100vh;

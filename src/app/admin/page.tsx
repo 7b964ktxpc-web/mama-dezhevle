@@ -22,9 +22,58 @@ type Metrics = { searches24h: number; clicks24h: number; approvedDeals: number }
 // Inside the Telegram WebApp, plain <a target="_blank"> does not work — links
 // must go through Telegram.WebApp.openLink. In a normal browser it's a noop.
 function openExternal(url: string) {
-  const tg = (window as any).Telegram?.WebApp;
-  if (tg?.openLink) tg.openLink(url);
-  else window.open(url, "_blank", "noopener");
+  try {
+    const tg = (window as any).Telegram?.WebApp;
+    if (tg?.openLink) {
+      tg.openLink(url);
+      return;
+    }
+  } catch { /* fall through */ }
+  window.open(url, "_blank", "noopener");
+}
+
+function AdminDealCard({ deal, onAct, busy }: { deal: Deal; onAct: (id: string, action: "approve" | "reject") => void; busy: string | null }) {
+  const product = Array.isArray(deal.products) ? deal.products[0] : deal.products;
+  if (!product) return null;
+  const price = rub(deal.current_price);
+  const old = rub(deal.reference_price);
+  return (
+    <div className="deal-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 10 }}>
+      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        {product.image_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img className="thumb" src={product.image_url} alt={product.title} />
+        ) : (
+          <div className="thumb-empty" />
+        )}
+        <div className="info">
+          <div className="t">{product.title}</div>
+          <div className="d">
+            <b style={{ fontSize: 17 }}>{price} ₽</b>{" "}
+            <s>было {old} ₽</s> · −{Math.round(Number(deal.discount_percent))}%
+          </div>
+          <div className="s">AI Score: {deal.deal_score}/100 · {product.source === "wildberries" ? "WB" : product.source === "yandex_market" ? "Яндекс" : product.source ?? ""}
+          </div>
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+        <a
+          className="btn btn-ghost"
+          href={product.url}
+          onClick={(e) => { e.preventDefault(); openExternal(product.url); }}
+          style={{ textAlign: "center", padding: "11px 0", fontSize: 14 }}
+        >
+          Открыть ↗
+        </a>
+        <button className="btn btn-green" onClick={() => onAct(deal.id, "approve")} disabled={busy === deal.id + "approve"}>
+          ✅ Одобрить
+        </button>
+        <button className="btn btn-ghost" onClick={() => onAct(deal.id, "reject")} disabled={busy === deal.id + "reject"} style={{ color: "#d64545", borderColor: "#ffc7b3" }}>
+          ✕ Отклонить
+        </button>
+      </div>
+    </div>
+  );
 }
 
 type UserRow = { userId: number; searches: number; lastQuery: string; lastAt: string };
@@ -214,43 +263,9 @@ export default function AdminPage() {
           {deals.length === 0 ? (
             <div className="empty-note">Нет предложений на модерации. Запустите Scout (npm run scout) — он найдёт выгодные сделки и принесёт их сюда.</div>
           ) : (
-            deals.map((deal) => {
-              const product = Array.isArray(deal.products) ? deal.products[0] : deal.products;
-              if (!product) return null;
-              return (
-                <div key={deal.id} className="deal-row">
-                  {product.image_url ? (
-                    <a
-                      href={product.url}
-                      onClick={(e) => { e.preventDefault(); openExternal(product.url); }}
-                      style={{ flexShrink: 0 }}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img className="thumb" src={product.image_url} alt={product.title} />
-                    </a>
-                  ) : (
-                    <div className="thumb-empty" />
-                  )}
-                  <div className="info">
-                    <a
-                      href={product.url}
-                      onClick={(e) => { e.preventDefault(); openExternal(product.url); }}
-                      style={{ textDecoration: "none", color: "inherit" }}
-                    >
-                      <div className="t">{product.title} ↗</div>
-                    </a>
-                    <div className="d">
-                      {rub(deal.current_price)} ₽ <s>было {rub(deal.reference_price)} ₽</s> · −{Math.round(Number(deal.discount_percent))}% · {product.source ?? ""}
-                    </div>
-                    <div className="s">AI Score: {deal.deal_score}/100</div>
-                  </div>
-                  <div className="actions">
-                    <button className="btn btn-green" onClick={() => act(deal.id, "approve")} disabled={busy === deal.id + "approve"}>Одобрить</button>
-                    <button className="btn btn-ghost" onClick={() => act(deal.id, "reject")} disabled={busy === deal.id + "reject"}>Отклонить</button>
-                  </div>
-                </div>
-              );
-            })
+            deals.map((deal) => (
+              <AdminDealCard key={deal.id} deal={deal} onAct={act} busy={busy} />
+            ))
           )}
         </>
       ) : tab === "users" ? (
