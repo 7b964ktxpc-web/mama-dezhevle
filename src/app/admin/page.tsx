@@ -40,20 +40,28 @@ export default function AdminPage() {
         fetch("/api/admin?action=metrics"),
       ]);
       // Opened inside the Telegram client as a WebApp: authorize via the
-      // bot-signed initData instead of the login form.
-      if (dealsRes.status === 401 && typeof window !== "undefined" && (window as any).Telegram?.WebApp?.initData) {
-        const tg = (window as any).Telegram.WebApp;
-        try { tg.ready?.(); tg.expand?.(); } catch { /* older clients */ }
-        const login = await fetch("/api/admin?action=login-telegram", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ initData: tg.initData }),
-        });
-        if (login.ok) {
-          [dealsRes, metricsRes] = await Promise.all([
-            fetch("/api/admin"),
-            fetch("/api/admin?action=metrics"),
-          ]);
+      // bot-signed initData instead of the login form. The telegram-web-app.js
+      // script can load after our first check — retry for a few seconds.
+      if (dealsRes.status === 401 && typeof window !== "undefined") {
+        const getWebApp = () => (window as any).Telegram?.WebApp;
+        let tg = getWebApp();
+        for (let i = 0; !tg?.initData && i < 15; i += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 200));
+          tg = getWebApp();
+        }
+        if (tg?.initData) {
+          try { tg.ready?.(); tg.expand?.(); } catch { /* older clients */ }
+          const login = await fetch("/api/admin?action=login-telegram", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ initData: tg.initData }),
+          });
+          if (login.ok) {
+            [dealsRes, metricsRes] = await Promise.all([
+              fetch("/api/admin"),
+              fetch("/api/admin?action=metrics"),
+            ]);
+          }
         }
       }
       if (dealsRes.status === 401) {
