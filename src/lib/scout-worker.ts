@@ -71,6 +71,9 @@ export async function scoutSweepOnce(): Promise<{ inserted: number; queries: num
       const best = result.groups
         .map((g) => g.best)
         .filter((o) => o.verified && (o.dealScore ?? 0) >= MIN_DEAL_SCORE)
+        // A "deal" needs real savings: a strikethrough price above the current
+        // one (>= 5%). A cheap-but-undiscounted item is not a deal worth posting.
+        .filter((o) => o.oldPrice && o.oldPrice > o.price * 1.05)
         .slice(0, MAX_OFFERS_PER_QUERY);
       for (const offer of best) {
         const outcome = await saveOffer(supabase, query, offer);

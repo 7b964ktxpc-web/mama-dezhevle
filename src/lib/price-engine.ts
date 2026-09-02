@@ -43,12 +43,21 @@ export function applyPriceEngine(groups: ProductGroup[]): void {
       offer.verified = true;
       offer.verificationStatus = "ok";
     }
-    const reference = marketMedian || group.best.price;
+    // Reference price for scoring: cross-source median is only meaningful with
+    // several offers. For single-offer groups the strikethrough price is the
+    // only honest reference; without it there is nothing to score against.
+    const multi = group.offers.filter((o) => o.verified).length > 1;
+    const reference = multi ? marketMedian || group.best.price : group.best.oldPrice && group.best.oldPrice > group.best.price ? group.best.oldPrice : group.best.price;
     for (const offer of group.offers) {
       if (!offer.verified) continue;
+      const offerReference = multi
+        ? Math.max(reference, offer.price)
+        : offer.oldPrice && offer.oldPrice > offer.price
+          ? offer.oldPrice
+          : offer.price;
       const scored = calculateDealScore({
         currentPrice: offer.effectivePrice ?? offer.price,
-        referencePrice: Math.max(reference, offer.price),
+        referencePrice: offerReference,
         rating: offer.rating ?? null,
         reviewsCount: offer.reviewsCount ?? null,
         available: offer.availability !== false,

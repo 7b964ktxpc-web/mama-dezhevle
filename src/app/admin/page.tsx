@@ -50,7 +50,11 @@ function AdminDealCard({ deal, onAct, busy }: { deal: Deal; onAct: (id: string, 
           <div className="t">{product.title}</div>
           <div className="d">
             <b style={{ fontSize: 17 }}>{price} ₽</b>{" "}
-            <s>было {old} ₽</s> · −{Math.round(Number(deal.discount_percent))}%
+            {Number(deal.reference_price) > Number(deal.current_price) ? (
+              <>
+                <s>было {old} ₽</s> · −{Math.round(Number(deal.discount_percent))}%
+              </>
+            ) : null}
           </div>
           <div className="s">AI Score: {deal.deal_score}/100 · {product.source === "wildberries" ? "WB" : product.source === "yandex_market" ? "Яндекс" : product.source ?? ""}
           </div>

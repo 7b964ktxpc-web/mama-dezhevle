@@ -156,9 +156,46 @@ function primaryStem(query: string): string | null {
 
 export function filterRelevant(offers: Offer[], query: string): { kept: Offer[]; dropped: number } {
   const stem = primaryStem(query);
-  if (!stem) return { kept: offers, dropped: 0 };
-  const kept = offers.filter((offer) => normalizeWord(offer.title).includes(stem));
-  return kept.length ? { kept, dropped: offers.length - kept.length } : { kept: offers, dropped: 0 };
+  const wantedGender = genderOf(query);
+  let kept = offers;
+  let dropped = 0;
+  if (stem) {
+    const byStem = offers.filter((offer) => normalizeWord(offer.title).includes(stem));
+    if (byStem.length) {
+      dropped += offers.length - byStem.length;
+      kept = byStem;
+    }
+  }
+  if (wantedGender) {
+    const byGender = kept.filter((offer) => {
+      const offerGender = genderOf(offer.title);
+      if (offerGender && offerGender !== wantedGender) return false;
+      if (wantedGender === "boy" && FEMALE_ONLY_RE.test(offer.title)) return false;
+      return true;
+    });
+    if (byGender.length) {
+      dropped += kept.length - byGender.length;
+      kept = byGender;
+    }
+  }
+  return { kept, dropped };
+}
+
+// Verifier stage 3: gender mismatch. "Куртка мальчику" must not return
+// "куртка для девочки". We only drop offers when the query states one gender
+// explicitly and the title states the opposite one; unisex/neutral items stay.
+const GIRL_RE = /\bдевочк\w*\b/i;
+const BOY_RE = /\bмальчик\w*\b/i;
+const FEMALE_RE = /\bдевочк\w*\b|\bдевичь\w*\b/i;
+const MALE_RE = /\bмальчик\w*\b/i;
+const FEMALE_ONLY_RE = /\b(юбк\w*|плать\w*|сарафан\w*)\b/i;
+
+function genderOf(text: string): "boy" | "girl" | null {
+  const girl = GIRL_RE.test(text);
+  const boy = BOY_RE.test(text);
+  if (girl && !boy) return "girl";
+  if (boy && !girl) return "boy";
+  return null;
 }
 
 function toNumber(value: unknown): number | null {
