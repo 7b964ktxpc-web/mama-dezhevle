@@ -23,6 +23,7 @@ import { trackedUrlFor } from "../lib/affiliate";
 import { adminTelegramIds } from "../lib/auth";
 import { sendTelegramPost } from "../lib/telegram";
 import { getChannelId, setChannelId } from "../lib/channel-settings";
+import { scoutSweepOnce, scoutIntervalMs } from "../lib/scout-worker";
 import { answerTelegramCallback, deleteTelegramWebhook, editTelegramMessage, getTelegramPhotoUrl, getTelegramUpdates, mainMenuKeyboard, adminWebAppKeyboard, adminReplyKeyboard, setTelegramMenuButton, normalizeSearchQuery, parseUnwatchCommand, parseWatchCommand, resultKeyboard, sendTelegramBotMessage, startText, supportKeyboard } from "../lib/telegram-bot";
 
 function formatResult(item: any, index: number) { return `${index + 1}. ${item.title}\n💰 ${Math.round(Number(item.price)).toLocaleString("ru-RU")} ₽${item.oldPrice && item.oldPrice > item.price ? ` (было ${Math.round(Number(item.oldPrice)).toLocaleString("ru-RU")} ₽)` : ""}${item.rating ? ` ⭐ ${item.rating}` : ""}${item.source ? `\n🏪 ${item.source}` : ""}`; }
@@ -66,7 +67,7 @@ async function sendAdminDeals(supabase: ReturnType<typeof getSupabaseAdmin>, cha
     .limit(10);
   if (error) throw error;
   if (!deals?.length) {
-    await sendTelegramBotMessage(chatId, "На модерации пусто. Запусти Scout (npm run scout) — он принесёт сделки.", mainMenuKeyboard());
+    await sendTelegramBotMessage(chatId, "Пока нет предложений. Фоновый Scout ищет сделки сам, пока бот работает — загляни позже.", mainMenuKeyboard());
     return;
   }
   for (const deal of deals) {
@@ -145,6 +146,14 @@ async function main() {
   const supabase = getSupabaseAdmin(); const lockToken = randomUUID(); if (!(await acquireBotLock(supabase, lockToken))) { console.log("Telegram bot is already running; exiting."); return; }
   try {
     await deleteTelegramWebhook();
+    // Background Scout runs alongside the bot: no separate npm command needed.
+    if (process.env.KETTU_DIR?.trim() && !process.env.SCOUT_DISABLED) {
+      const scoutLoop = async () => {
+        try { await scoutSweepOnce(); } catch (error) { console.error("Scout sweep failed", error); }
+        setTimeout(scoutLoop, scoutIntervalMs());
+      };
+      setTimeout(scoutLoop, 15000);
+    }
     const { data: latestUpdate, error: latestUpdateError } = await supabase.from("telegram_bot_updates").select("update_id").order("update_id", { ascending: false }).limit(1).maybeSingle(); if (latestUpdateError) throw latestUpdateError;
     const updates = await getTelegramUpdates(latestUpdate ? Number(latestUpdate.update_id) + 1 : undefined);
     for (const update of updates) {

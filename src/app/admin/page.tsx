@@ -261,7 +261,7 @@ export default function AdminPage() {
           {error && <p className="err-note">{error}</p>}
 
           {deals.length === 0 ? (
-            <div className="empty-note">Нет предложений на модерации. Запустите Scout (npm run scout) — он найдёт выгодные сделки и принесёт их сюда.</div>
+            <div className="empty-note">Пока нет предложений на модерации. Фоновый Scout ищет сделки автоматически (пока бот запущен) — загляните через несколько минут.</div>
           ) : (
             deals.map((deal) => (
               <AdminDealCard key={deal.id} deal={deal} onAct={act} busy={busy} />
