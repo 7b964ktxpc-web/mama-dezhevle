@@ -234,7 +234,16 @@ export default function AdminPage() {
   return (
     <main className="admin-main">
       <div className="admin-top">
-        <h1>Модерация сделок</h1>
+        <div>
+          <h1>Модерация сделок</h1>
+          <a
+            href="/"
+            onClick={(e) => { e.preventDefault(); openExternal(new URL("/", window.location.origin).toString()); }}
+            className="site-link"
+          >
+            🛍 Открыть сайт сервиса ↗
+          </a>
+        </div>
         <div className="tabs">
           <button className={tab === "deals" ? "btn btn-primary" : "btn btn-ghost"} onClick={() => setTab("deals")}>Сделки</button>
           <button className={tab === "users" ? "btn btn-primary" : "btn btn-ghost"} onClick={() => setTab("users")}>Пользователи</button>

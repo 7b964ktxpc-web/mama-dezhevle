@@ -636,6 +636,19 @@ a { color: inherit; }
 
 .admin-top h1 { font-size: 26px; }
 
+.site-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.site-link:hover { color: var(--accent-deep); text-decoration: underline; }
+
 .tabs { display: flex; gap: 8px; }
 
 .metrics-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
