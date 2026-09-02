@@ -4,6 +4,7 @@ import { buildDealPost } from "../../../lib/post-template";
 import { sendTelegramPost } from "../../../lib/telegram";
 import { trackedUrlFor } from "../../../lib/affiliate";
 import { getSessionUser, loginAdmin, createSessionToken, sessionCookie, updateCredentials, verifyTelegramInitData, adminTelegramIds } from "../../../lib/auth";
+import { getChannelId } from "../../../lib/channel-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +25,8 @@ async function publishDealToChannel(dealId: string) {
   if (!product) throw new Error("product not found");
 
   const link = trackedUrlFor(deal.product_id, product.source ?? "unknown", product.url);
-  if (process.env.TELEGRAM_BOT_TOKEN?.trim() && process.env.TELEGRAM_CHANNEL_ID?.trim()) {
+  const channelId = await getChannelId();
+  if (channelId) {
     const post = buildDealPost(
       {
         id: String(deal.product_id),
@@ -45,10 +47,11 @@ async function publishDealToChannel(dealId: string) {
         reasons: deal.ai_reason ? [deal.ai_reason] : [],
       },
     );
-    const message = await sendTelegramPost(post);
+    const sent = await sendTelegramPost(post, channelId);
+    const sentResult = sent as { result?: { message_id?: number }; message_id?: number };
     await supabase.from("telegram_posts").insert({
       deal_id: deal.id,
-      telegram_message_id: message?.message_id ?? 0,
+      telegram_message_id: sentResult?.result?.message_id ?? sentResult?.message_id ?? 0,
       published_price: Number(deal.current_price),
       post_text: post,
     });
@@ -207,9 +210,11 @@ export async function POST(request: Request) {
     if (action === "publish-post") {
       const body = await request.json();
       const text = String(body.text ?? "").trim().slice(0, 4000);
-      if (!text) return NextResponse.json({ error: "Пустой текст поста" }, { status: 400 });
-      const message = await sendTelegramPost(text);
-      return NextResponse.json({ ok: true, messageId: message?.message_id ?? null });
+      const channelId = await getChannelId();
+      if (!text || !channelId) return NextResponse.json({ error: !text ? "Пустой текст поста" : "Канал не подключён — перешли боту любой пост из канала" }, { status: 400 });
+      const sent = await sendTelegramPost(text, channelId);
+      const result = sent as { result?: { message_id?: number }; message_id?: number };
+      return NextResponse.json({ ok: true, messageId: result?.result?.message_id ?? result?.message_id ?? null });
     }
 
     const body = await request.json();

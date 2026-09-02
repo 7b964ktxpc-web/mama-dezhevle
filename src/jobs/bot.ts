@@ -22,6 +22,7 @@ import { addPriceAlert, removePriceAlert } from "../lib/price-alerts";
 import { trackedUrlFor } from "../lib/affiliate";
 import { adminTelegramIds } from "../lib/auth";
 import { sendTelegramPost } from "../lib/telegram";
+import { getChannelId, setChannelId } from "../lib/channel-settings";
 import { answerTelegramCallback, deleteTelegramWebhook, editTelegramMessage, getTelegramPhotoUrl, getTelegramUpdates, mainMenuKeyboard, adminWebAppKeyboard, adminReplyKeyboard, setTelegramMenuButton, normalizeSearchQuery, parseUnwatchCommand, parseWatchCommand, resultKeyboard, sendTelegramBotMessage, startText, supportKeyboard } from "../lib/telegram-bot";
 
 function formatResult(item: any, index: number) { return `${index + 1}. ${item.title}\n💰 ${Math.round(Number(item.price)).toLocaleString("ru-RU")} ₽${item.oldPrice && item.oldPrice > item.price ? ` (было ${Math.round(Number(item.oldPrice)).toLocaleString("ru-RU")} ₽)` : ""}${item.rating ? ` ⭐ ${item.rating}` : ""}${item.source ? `\n🏪 ${item.source}` : ""}`; }
@@ -119,9 +120,13 @@ async function handleAdminAction(supabase: ReturnType<typeof getSupabaseAdmin>, 
       if (deal && product) {
         const link = trackedUrlFor(deal.product_id, product.source ?? "unknown", product.url);
         const post = `🎁 Выгодно прямо сейчас!\n\n${product.title}\n\n💰 ${Math.round(Number(deal.current_price)).toLocaleString("ru-RU")} ₽ (было ${Math.round(Number(deal.reference_price)).toLocaleString("ru-RU")} ₽, −${Math.round(Number(deal.discount_percent))}%)\n${product.rating ? `⭐ ${product.rating}\n` : ""}🔗 ${link}`;
-        if (process.env.TELEGRAM_BOT_TOKEN?.trim() && process.env.TELEGRAM_CHANNEL_ID?.trim()) {
-          const message = await sendTelegramPost(post);
-          await supabase.from("telegram_posts").insert({ deal_id: deal.id, telegram_message_id: message?.message_id ?? 0, published_price: Number(deal.current_price), post_text: post });
+        if (process.env.TELEGRAM_BOT_TOKEN?.trim()) {
+          const channelId = await getChannelId();
+          if (channelId) {
+            const sent = await sendTelegramPost(post, channelId);
+            const sentResult = sent as { result?: { message_id?: number }; message_id?: number };
+            await supabase.from("telegram_posts").insert({ deal_id: deal.id, telegram_message_id: sentResult?.result?.message_id ?? sentResult?.message_id ?? 0, published_price: Number(deal.current_price), post_text: post });
+          }
         }
         await supabase.from("deals").update({ status: "approved", published_at: new Date().toISOString() }).eq("id", dealId);
       }
@@ -145,8 +150,31 @@ async function main() {
     for (const update of updates) {
       if (!(await refreshBotLock(supabase, lockToken))) break;
       const callback = update.callback_query; if (callback) { await answerTelegramCallback(callback.id); const chatId = callback.message?.chat.id; if (!chatId) continue; const cbUserId = callback.from?.id ?? chatId; if (callback.data === "menu:search") await sendTelegramBotMessage(chatId, "🔎 Просто напиши, что ищем — я продолжу разговор сама.", mainMenuKeyboard()); else if (callback.data === "menu:photo") await sendTelegramBotMessage(chatId, "📸 Пришли фотографию товара — попробую определить его и продолжу поиск.", mainMenuKeyboard()); else if (callback.data === "menu:watches") await sendWatchesList(supabase, chatId, cbUserId); else if (callback.data === "menu:support" || callback.data === "support:start") await sendTelegramBotMessage(chatId, "💬 Я здесь 🙂 Просто напиши мне сообщение обычным текстом.", mainMenuKeyboard()); else if (callback.data?.startsWith("unwatch:")) { await removePriceAlert(Number(cbUserId), callback.data.slice(8)); await sendWatchesList(supabase, chatId, cbUserId); } else if (callback.data?.startsWith("watch:")) { const productId = callback.data.slice(6); try { await addPriceAlert({ telegramUserId: Number(cbUserId), chatId, productId }); await sendTelegramBotMessage(chatId, "🔔 Буду следить за этим товаром и напишу, когда подешевеет. Чтобы задать желаемую цену, отправь: /watch <id> <цена>.", mainMenuKeyboard()); } catch { await sendTelegramBotMessage(chatId, "Не смогла оформить подписку на этот товар.", mainMenuKeyboard()); } } else if (isAdminUser(cbUserId) && (callback.data?.startsWith("admin:approve:") || callback.data?.startsWith("admin:reject:"))) { await handleAdminAction(supabase, chatId, callback.data, callback.message?.message_id); } continue; }
+      // Auto-detect the publishing channel: the bot was added there as admin
+      // (my_chat_member), or an admin forwarded a post from it.
+      const membership = update.my_chat_member;
+      if (membership?.chat?.type === "channel" && membership.new_chat_member?.status === "administrator") {
+        try {
+          await setChannelId(membership.chat.id);
+          await sendTelegramBotMessage(membership.chat.id, "✅ Канал подключён для публикации! Одобренные сделки будут появляться здесь.");
+        } catch (error) { console.error("Channel registration failed", error); }
+        continue;
+      }
+      const channelPost = update.channel_post ?? update.edited_channel_post;
+      if (channelPost?.chat?.type === "channel" && channelPost.sender_chat?.id) {
+        try { await setChannelId(channelPost.sender_chat.id); } catch { /* non-critical */ }
+        continue;
+      }
       const message = update.message; if (!message?.chat?.id) continue; const { error: updateError } = await supabase.from("telegram_bot_updates").insert({ update_id: update.update_id }); if (updateError?.code === "23505") continue; if (updateError) throw updateError;
       const text = normalizeSearchQuery(message.text ?? message.caption ?? ""); const userId = message.from?.id ?? message.chat.id;
+      const forwardChat = (message as any).forward_from_chat;
+      if (forwardChat?.type === "channel" && isAdminUser(userId)) {
+        try {
+          await setChannelId(forwardChat.id);
+          await sendTelegramBotMessage(message.chat.id, `✅ Канал «${forwardChat.title ?? "без названия"}» подключён для публикации.`, mainMenuKeyboard());
+        } catch (error) { console.error("Channel registration via forward failed", error); }
+        continue;
+      }
       if (text === "/start" || text.startsWith("/start ") || text === "/help") {
         if (isAdminUser(userId)) {
           const webAppUrl = process.env.ADMIN_WEBAPP_URL?.trim() || process.env.PUBLIC_SITE_URL?.trim();

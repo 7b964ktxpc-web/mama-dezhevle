@@ -24,6 +24,20 @@ export type TelegramUpdate = {
     photo?: Array<{ file_id: string; width: number; height: number; file_size?: number }>;
     chat: { id: number; type: string };
     from?: { id: number; first_name?: string; username?: string };
+    forward_from_chat?: { id: number; type: string; title?: string };
+  };
+  my_chat_member?: {
+    chat: { id: number; type: string; title?: string };
+    new_chat_member?: { status: string };
+    from?: { id: number };
+  };
+  channel_post?: {
+    chat: { id: number; type: string };
+    sender_chat?: { id: number };
+  };
+  edited_channel_post?: {
+    chat: { id: number; type: string };
+    sender_chat?: { id: number };
   };
   callback_query?: {
     id: string;

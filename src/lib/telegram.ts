@@ -82,9 +82,9 @@ async function sendOne(token: string, chatId: string, text: string): Promise<Tel
   throw new Error(lastError || "Telegram request failed");
 }
 
-export async function sendTelegramPost(text: string) {
+export async function sendTelegramPost(text: string, channelOverride?: string) {
   const token = requireEnv("TELEGRAM_BOT_TOKEN");
-  const chatId = requireEnv("TELEGRAM_CHANNEL_ID");
+  const chatId = channelOverride?.trim() || requireEnv("TELEGRAM_CHANNEL_ID");
   const chunks = splitMessage(text);
   const messages: TelegramResponse[] = [];
   for (const chunk of chunks) messages.push(await sendOne(token, chatId, chunk));
