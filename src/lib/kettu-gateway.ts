@@ -69,6 +69,9 @@ export type GatewayResult = {
 };
 
 function kettuDir() {
+  // Serverless (Vercel) has no local uv/kettu install — always disabled there
+  // regardless of stray env values; the catalog fallback covers the web app.
+  if (process.env.VERCEL === "1" || process.env.VERCEL_ENV) return undefined;
   return process.env.KETTU_DIR?.trim();
 }
 
