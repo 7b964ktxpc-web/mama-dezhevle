@@ -84,6 +84,43 @@ export async function GET(request: Request) {
         approvedDeals: dealsApproved.count ?? 0,
       });
     }
+    if (action === "users") {
+      const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+      const { data: requests, error: usersError } = await supabase
+        .from("search_requests")
+        .select("telegram_user_id, query_text, created_at")
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(300);
+      if (usersError) throw usersError;
+      const byUser = new Map<number, { userId: number; searches: number; lastQuery: string; lastAt: string }>();
+      for (const row of requests ?? []) {
+        const id = Number(row.telegram_user_id);
+        const existing = byUser.get(id) ?? { userId: id, searches: 0, lastQuery: "", lastAt: "" };
+        existing.searches += 1;
+        if (!existing.lastAt || row.created_at > existing.lastAt) {
+          existing.lastAt = row.created_at;
+          existing.lastQuery = row.query_text ?? "";
+        }
+        byUser.set(id, existing);
+      }
+      const users = [...byUser.values()].sort((a, b) => b.searches - a.searches);
+      const recent = (requests ?? []).slice(0, 40).map((row) => ({
+        userId: Number(row.telegram_user_id),
+        query: row.query_text ?? "",
+        at: row.created_at,
+      }));
+      return NextResponse.json({ users, recent });
+    }
+    if (action === "channel") {
+      const { data: posts, error: postsError } = await supabase
+        .from("telegram_posts")
+        .select("id, deal_id, published_price, post_text, published_at")
+        .order("published_at", { ascending: false })
+        .limit(20);
+      if (postsError) throw postsError;
+      return NextResponse.json({ posts: posts ?? [] });
+    }
     const { data: deals, error } = await supabase
       .from("deals")
       .select("id, current_price, reference_price, discount_percent, deal_score, deal_level, ai_reason, created_at, products(title, url, source, image_url, rating, reviews_count)")
@@ -165,6 +202,14 @@ export async function POST(request: Request) {
         );
       }
       return response;
+    }
+
+    if (action === "publish-post") {
+      const body = await request.json();
+      const text = String(body.text ?? "").trim().slice(0, 4000);
+      if (!text) return NextResponse.json({ error: "Пустой текст поста" }, { status: 400 });
+      const message = await sendTelegramPost(text);
+      return NextResponse.json({ ok: true, messageId: message?.message_id ?? null });
     }
 
     const body = await request.json();

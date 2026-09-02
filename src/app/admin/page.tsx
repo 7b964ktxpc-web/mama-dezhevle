@@ -19,6 +19,10 @@ type Deal = {
 
 type Metrics = { searches24h: number; clicks24h: number; approvedDeals: number };
 
+type UserRow = { userId: number; searches: number; lastQuery: string; lastAt: string };
+type RecentRow = { userId: number; query: string; at: string };
+type ChannelPost = { id: string; published_price: number; post_text: string; published_at: string };
+
 function rub(n: number) {
   return Math.round(Number(n)).toLocaleString("ru-RU");
 }
@@ -31,7 +35,10 @@ export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [tab, setTab] = useState<"deals" | "settings">("deals");
+  const [tab, setTab] = useState<"deals" | "users" | "channel" | "settings">("deals");
+  const [users, setUsers] = useState<UserRow[]>([]);
+  const [recent, setRecent] = useState<RecentRow[]>([]);
+  const [posts, setPosts] = useState<ChannelPost[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -81,6 +88,24 @@ export default function AdminPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (tab === "users") {
+      void fetch("/api/admin?action=users")
+        .then((r) => (r.ok ? r.json() : { users: [], recent: [] }))
+        .then((j) => {
+          setUsers(j.users ?? []);
+          setRecent(j.recent ?? []);
+        })
+        .catch(() => {});
+    }
+    if (tab === "channel") {
+      void fetch("/api/admin?action=channel")
+        .then((r) => (r.ok ? r.json() : { posts: [] }))
+        .then((j) => setPosts(j.posts ?? []))
+        .catch(() => {});
+    }
+  }, [tab]);
 
   async function login(e: React.FormEvent) {
     e.preventDefault();
@@ -155,6 +180,8 @@ export default function AdminPage() {
         <h1>Модерация сделок</h1>
         <div className="tabs">
           <button className={tab === "deals" ? "btn btn-primary" : "btn btn-ghost"} onClick={() => setTab("deals")}>Сделки</button>
+          <button className={tab === "users" ? "btn btn-primary" : "btn btn-ghost"} onClick={() => setTab("users")}>Пользователи</button>
+          <button className={tab === "channel" ? "btn btn-primary" : "btn btn-ghost"} onClick={() => setTab("channel")}>Канал</button>
           <button className={tab === "settings" ? "btn btn-primary" : "btn btn-ghost"} onClick={() => setTab("settings")}>Доступ</button>
           <button className="btn btn-ghost" onClick={logout}>Выйти</button>
         </div>
@@ -206,10 +233,106 @@ export default function AdminPage() {
             })
           )}
         </>
+      ) : tab === "users" ? (
+        <div>
+          <h2 style={{ fontSize: 20, marginBottom: 14 }}>Кто ищет — за 30 дней</h2>
+          {users.length === 0 ? (
+            <div className="empty-note">Поисков пока не было.</div>
+          ) : (
+            users.map((u) => (
+              <div key={u.userId} className="deal-row">
+                <div className="info">
+                  <div className="t">ID {u.userId}</div>
+                  <div className="d">Поисков: {u.searches} · последний: {u.lastQuery}</div>
+                </div>
+              </div>
+            ))
+          )}
+          <h2 style={{ fontSize: 20, margin: "26px 0 14px" }}>Последние запросы</h2>
+          {recent.length === 0 ? (
+            <div className="empty-note">Пока пусто.</div>
+          ) : (
+            recent.map((r, i) => (
+              <div key={i} className="deal-row">
+                <div className="info">
+                  <div className="t">{r.query || "—"}</div>
+                  <div className="d">ID {r.userId} · {new Date(r.at).toLocaleString("ru-RU")}</div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      ) : tab === "channel" ? (
+        <ChannelTab posts={posts} />
       ) : (
         <SettingsTab onDone={setError} />
       )}
     </main>
+  );
+}
+
+function ChannelTab({ posts }: { posts: ChannelPost[] }) {
+  const [text, setText] = useState("");
+  const [ok, setOk] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function publish(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setOk(null);
+    setErr(null);
+    try {
+      const res = await fetch("/api/admin?action=publish-post", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Не удалось опубликовать");
+      setOk("Опубликовано в канал.");
+      setText("");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div>
+      <form className="form-card" onSubmit={publish} style={{ width: "100%", maxWidth: 560 }}>
+        <h2>Опубликовать в канал</h2>
+        <p className="hint">Произвольный пост — новинка, промокод, объявление.</p>
+        <textarea
+          className="field"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Например: 🎁 Скидка 40% на детские пижамы в Ozon — только сегодня!"
+          rows={5}
+          required
+        />
+        <button className="btn btn-primary" type="submit" disabled={busy}>
+          {busy ? "Публикуем…" : "Опубликовать"}
+        </button>
+        {ok && <p className="ok-note">{ok}</p>}
+        {err && <p className="err-note">{err}</p>}
+      </form>
+
+      <h2 style={{ fontSize: 20, margin: "26px 0 14px" }}>История публикаций</h2>
+      {posts.length === 0 ? (
+        <div className="empty-note">В канале ещё ничего не опубликовано через панель.</div>
+      ) : (
+        posts.map((p) => (
+          <div key={p.id} className="deal-row">
+            <div className="info">
+              <div className="t">{(p.post_text ?? "").split("\n")[0].slice(0, 90) || "Пост"}</div>
+              <div className="d">{new Date(p.published_at).toLocaleString("ru-RU")} · {Math.round(Number(p.published_price))} ₽</div>
+            </div>
+          </div>
+        ))
+      )}
+    </div>
   );
 }
 
