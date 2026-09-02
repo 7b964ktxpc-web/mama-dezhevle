@@ -42,6 +42,13 @@ function clock(ms: number) {
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
+// Telegram WebApp requires openLink for external URLs; in a browser it's a noop.
+function openExternal(url: string) {
+  const tg = (window as any).Telegram?.WebApp;
+  if (tg?.openLink) tg.openLink(url);
+  else window.open(url, "_blank", "noopener");
+}
+
 export function LiveSearch() {
   const [query, setQuery] = useState("");
   const [phase, setPhase] = useState<"idle" | "searching" | "done" | "failed">("idle");
@@ -210,7 +217,11 @@ export function LiveSearch() {
                         ) : null}
                       </div>
                       {best.rating ? <div className="product-rating">★ {best.rating}</div> : null}
-                      <a className="btn btn-buy" href={best.url} target="_blank" rel="noopener noreferrer">
+                      <a
+                        className="btn btn-buy"
+                        href={best.url}
+                        onClick={(e) => { e.preventDefault(); openExternal(best.url); }}
+                      >
                         Купить
                       </a>
                       {group.offers.length > 1 && (
@@ -221,7 +232,12 @@ export function LiveSearch() {
                       {open && (
                         <div className="compare-list">
                           {group.offers.map((offer, i) => (
-                            <a key={offer.url + i} className="compare-row" href={offer.url} target="_blank" rel="noopener noreferrer">
+                            <a
+                              key={offer.url + i}
+                              className="compare-row"
+                              href={offer.url}
+                              onClick={(e) => { e.preventDefault(); openExternal(offer.url); }}
+                            >
                               <span>
                                 <span className="medal">{["1", "2", "3"][i] ?? "·"}</span>
                                 {offer.label}

@@ -19,6 +19,14 @@ type Deal = {
 
 type Metrics = { searches24h: number; clicks24h: number; approvedDeals: number };
 
+// Inside the Telegram WebApp, plain <a target="_blank"> does not work — links
+// must go through Telegram.WebApp.openLink. In a normal browser it's a noop.
+function openExternal(url: string) {
+  const tg = (window as any).Telegram?.WebApp;
+  if (tg?.openLink) tg.openLink(url);
+  else window.open(url, "_blank", "noopener");
+}
+
 type UserRow = { userId: number; searches: number; lastQuery: string; lastAt: string };
 type RecentRow = { userId: number; query: string; at: string };
 type ChannelPost = { id: string; published_price: number; post_text: string; published_at: string };
@@ -212,13 +220,25 @@ export default function AdminPage() {
               return (
                 <div key={deal.id} className="deal-row">
                   {product.image_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img className="thumb" src={product.image_url} alt={product.title} />
+                    <a
+                      href={product.url}
+                      onClick={(e) => { e.preventDefault(); openExternal(product.url); }}
+                      style={{ flexShrink: 0 }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img className="thumb" src={product.image_url} alt={product.title} />
+                    </a>
                   ) : (
                     <div className="thumb-empty" />
                   )}
                   <div className="info">
-                    <div className="t">{product.title}</div>
+                    <a
+                      href={product.url}
+                      onClick={(e) => { e.preventDefault(); openExternal(product.url); }}
+                      style={{ textDecoration: "none", color: "inherit" }}
+                    >
+                      <div className="t">{product.title} ↗</div>
+                    </a>
                     <div className="d">
                       {rub(deal.current_price)} ₽ <s>было {rub(deal.reference_price)} ₽</s> · −{Math.round(Number(deal.discount_percent))}% · {product.source ?? ""}
                     </div>
