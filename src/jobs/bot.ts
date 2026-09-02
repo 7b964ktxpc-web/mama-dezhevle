@@ -22,7 +22,7 @@ import { addPriceAlert, removePriceAlert } from "../lib/price-alerts";
 import { trackedUrlFor } from "../lib/affiliate";
 import { adminTelegramIds } from "../lib/auth";
 import { sendTelegramPost } from "../lib/telegram";
-import { answerTelegramCallback, deleteTelegramWebhook, editTelegramMessage, getTelegramPhotoUrl, getTelegramUpdates, mainMenuKeyboard, normalizeSearchQuery, parseUnwatchCommand, parseWatchCommand, resultKeyboard, sendTelegramBotMessage, startText, supportKeyboard } from "../lib/telegram-bot";
+import { answerTelegramCallback, deleteTelegramWebhook, editTelegramMessage, getTelegramPhotoUrl, getTelegramUpdates, mainMenuKeyboard, adminWebAppKeyboard, normalizeSearchQuery, parseUnwatchCommand, parseWatchCommand, resultKeyboard, sendTelegramBotMessage, startText, supportKeyboard } from "../lib/telegram-bot";
 
 function formatResult(item: any, index: number) { return `${index + 1}. ${item.title}\n💰 ${Math.round(Number(item.price)).toLocaleString("ru-RU")} ₽${item.oldPrice && item.oldPrice > item.price ? ` (было ${Math.round(Number(item.oldPrice)).toLocaleString("ru-RU")} ₽)` : ""}${item.rating ? ` ⭐ ${item.rating}` : ""}${item.source ? `\n🏪 ${item.source}` : ""}`; }
 async function sendResults(chatId: number, results: any[]) { if (!results.length) return sendTelegramBotMessage(chatId, "🔎 Пока ничего подходящего не нашла. Попробуй изменить запрос или бюджет.", supportKeyboard()); for (const [index, item] of results.slice(0, 8).entries()) await sendTelegramBotMessage(chatId, formatResult(item, index), resultKeyboard(item)); }
@@ -92,9 +92,15 @@ async function handleAdminCommand(supabase: ReturnType<typeof getSupabaseAdmin>,
       supabase.from("link_clicks").select("id", { count: "exact", head: true }).gte("clicked_at", since),
       supabase.from("deals").select("id", { count: "exact", head: true }).eq("status", "approved"),
     ]);
-    await sendTelegramBotMessage(chatId, `📊 За 24 часа:\n🔎 Поисков: ${searches.count ?? 0}\n🔗 Кликов: ${clicks.count ?? 0}\n✅ Одобрено сделок: ${approved.count ?? 0}\n\n/admin — список кандидатов`, mainMenuKeyboard());
+    await sendTelegramBotMessage(chatId, `📊 За 24 часа:\n🔎 Поисков: ${searches.count ?? 0}\n🔗 Кликов: ${clicks.count ?? 0}\n✅ Одобрено сделок: ${approved.count ?? 0}\n\n/admin — панель и список кандидатов`, mainMenuKeyboard());
     return;
   }
+  const webAppUrl = process.env.ADMIN_WEBAPP_URL?.trim() || process.env.PUBLIC_SITE_URL?.trim();
+  const keyboard = webAppUrl ? adminWebAppKeyboard(webAppUrl.replace(/\/$/, "") + "/admin") : mainMenuKeyboard();
+  const intro = webAppUrl
+    ? "🖥 Панель модератора — сделки, метрики и настройки прямо в Telegram.\n\nИли жми кнопки под кандидатами:"
+    : "Кандидаты на модерацию:";
+  await sendTelegramBotMessage(chatId, intro, keyboard);
   await sendAdminDeals(supabase, chatId);
 }
 

@@ -35,10 +35,27 @@ export default function AdminPage() {
 
   const load = useCallback(async () => {
     try {
-      const [dealsRes, metricsRes] = await Promise.all([
+      let [dealsRes, metricsRes] = await Promise.all([
         fetch("/api/admin"),
         fetch("/api/admin?action=metrics"),
       ]);
+      // Opened inside the Telegram client as a WebApp: authorize via the
+      // bot-signed initData instead of the login form.
+      if (dealsRes.status === 401 && typeof window !== "undefined" && (window as any).Telegram?.WebApp?.initData) {
+        const tg = (window as any).Telegram.WebApp;
+        try { tg.ready?.(); tg.expand?.(); } catch { /* older clients */ }
+        const login = await fetch("/api/admin?action=login-telegram", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ initData: tg.initData }),
+        });
+        if (login.ok) {
+          [dealsRes, metricsRes] = await Promise.all([
+            fetch("/api/admin"),
+            fetch("/api/admin?action=metrics"),
+          ]);
+        }
+      }
       if (dealsRes.status === 401) {
         setAuthed(false);
         return;

@@ -1,8 +1,9 @@
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { getSupabaseAdmin } from "./supabase-admin";
 
-// Web admin auth: username + scrypt password in admin_users (Supabase), plus
-// HMAC-signed HttpOnly session cookies. No third-party auth service needed.
+// Admin auth: username + scrypt password (web), or Telegram WebApp initData
+// (opens from the Telegram bot as a Mini App). Sessions are HMAC-signed
+// HttpOnly cookies.
 
 const COOKIE_NAME = "admin_session";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -115,4 +116,33 @@ export function adminTelegramIds(): Set<string> {
       .map((id) => id.trim())
       .filter(Boolean),
   );
+}
+
+// Telegram WebApp auth: the client sends the bot-issued initData string, we
+// verify its HMAC-SHA256 signature against the bot token and trust the
+// embedded user id — no password needed inside the Telegram client.
+export function verifyTelegramInitData(initData: string): { userId: string; username: string } | null {
+  const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
+  if (!token || !initData) return null;
+  const params = new URLSearchParams(initData);
+  const hash = params.get("hash");
+  if (!hash) return null;
+  params.delete("hash");
+  params.delete("signature");
+  const dataCheckString = [...params.entries()]
+    .map(([key, value]) => `${key}=${value}`)
+    .sort()
+    .join("\n");
+  const secretKey = createHmac("sha256", "WebAppData").update(token).digest();
+  const computed = createHmac("sha256", secretKey).update(dataCheckString).digest("hex");
+  const a = Buffer.from(computed);
+  const b = Buffer.from(hash);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  try {
+    const user = JSON.parse(params.get("user") ?? "{}");
+    if (!user?.id) return null;
+    return { userId: String(user.id), username: user.username ?? "" };
+  } catch {
+    return null;
+  }
 }

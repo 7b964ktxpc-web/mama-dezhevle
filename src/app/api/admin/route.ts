@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from "../../../lib/supabase-admin";
 import { buildDealPost } from "../../../lib/post-template";
 import { sendTelegramPost } from "../../../lib/telegram";
 import { trackedUrlFor } from "../../../lib/affiliate";
-import { getSessionUser, loginAdmin, createSessionToken, sessionCookie, updateCredentials } from "../../../lib/auth";
+import { getSessionUser, loginAdmin, createSessionToken, sessionCookie, updateCredentials, verifyTelegramInitData, adminTelegramIds } from "../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -112,6 +112,26 @@ export async function POST(request: Request) {
       if (!session) return NextResponse.json({ error: "Неверный логин или пароль" }, { status: 401 });
       const response = NextResponse.json({ ok: true, username: session.username });
       response.cookies.set(sessionCookie.name, createSessionToken(session.userId, session.username), sessionCookie.options);
+      return response;
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });
+    }
+  }
+
+  if (action === "login-telegram") {
+    try {
+      const body = await request.json();
+      const initData = String(body.initData ?? "").slice(0, 4096);
+      const telegramUser = verifyTelegramInitData(initData);
+      if (!telegramUser || !adminTelegramIds().has(telegramUser.userId)) {
+        return NextResponse.json({ error: "Доступ только для администраторов" }, { status: 401 });
+      }
+      const response = NextResponse.json({ ok: true, username: `@${telegramUser.username || telegramUser.userId}` });
+      response.cookies.set(
+        sessionCookie.name,
+        createSessionToken(`tg:${telegramUser.userId}`, `@${telegramUser.username || telegramUser.userId}`),
+        sessionCookie.options,
+      );
       return response;
     } catch (error) {
       return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });

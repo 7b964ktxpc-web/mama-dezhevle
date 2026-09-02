@@ -67,7 +67,11 @@ export async function answerTelegramCallback(callbackQueryId: string, text?: str
 }
 
 export function mainMenuKeyboard() {
-  return { inline_keyboard: [[{ text: "🔎 Найти дешевле", callback_data: "menu:search" }, { text: "📸 По фото", callback_data: "menu:photo" }], [{ text: "🔔 Мои скидки", callback_data: "menu:watches" }, { text: "💬 Живое общение", callback_data: "menu:support" }]] };
+  return { inline_keyboard: [[{ text: "🔎 Поискать товары", callback_data: "menu:search" }, { text: "📸 По фото", callback_data: "menu:photo" }], [{ text: "🔔 Мои отслеживания", callback_data: "menu:watches" }, { text: "💬 Я здесь, пиши", callback_data: "menu:support" }]] };
+}
+
+export function adminWebAppKeyboard(url: string) {
+  return { inline_keyboard: [[{ text: "🖥 Открыть панель", web_app: { url } }]] };
 }
 
 import { trackedUrlFor } from "./affiliate";
