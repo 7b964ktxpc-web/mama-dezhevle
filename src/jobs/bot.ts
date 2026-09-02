@@ -22,7 +22,7 @@ import { addPriceAlert, removePriceAlert } from "../lib/price-alerts";
 import { trackedUrlFor } from "../lib/affiliate";
 import { adminTelegramIds } from "../lib/auth";
 import { sendTelegramPost } from "../lib/telegram";
-import { answerTelegramCallback, deleteTelegramWebhook, editTelegramMessage, getTelegramPhotoUrl, getTelegramUpdates, mainMenuKeyboard, adminWebAppKeyboard, normalizeSearchQuery, parseUnwatchCommand, parseWatchCommand, resultKeyboard, sendTelegramBotMessage, startText, supportKeyboard } from "../lib/telegram-bot";
+import { answerTelegramCallback, deleteTelegramWebhook, editTelegramMessage, getTelegramPhotoUrl, getTelegramUpdates, mainMenuKeyboard, adminWebAppKeyboard, adminReplyKeyboard, setTelegramMenuButton, normalizeSearchQuery, parseUnwatchCommand, parseWatchCommand, resultKeyboard, sendTelegramBotMessage, startText, supportKeyboard } from "../lib/telegram-bot";
 
 function formatResult(item: any, index: number) { return `${index + 1}. ${item.title}\n💰 ${Math.round(Number(item.price)).toLocaleString("ru-RU")} ₽${item.oldPrice && item.oldPrice > item.price ? ` (было ${Math.round(Number(item.oldPrice)).toLocaleString("ru-RU")} ₽)` : ""}${item.rating ? ` ⭐ ${item.rating}` : ""}${item.source ? `\n🏪 ${item.source}` : ""}`; }
 async function sendResults(chatId: number, results: any[]) { if (!results.length) return sendTelegramBotMessage(chatId, "🔎 Пока ничего подходящего не нашла. Попробуй изменить запрос или бюджет.", supportKeyboard()); for (const [index, item] of results.slice(0, 8).entries()) await sendTelegramBotMessage(chatId, formatResult(item, index), resultKeyboard(item)); }
@@ -96,11 +96,13 @@ async function handleAdminCommand(supabase: ReturnType<typeof getSupabaseAdmin>,
     return;
   }
   const webAppUrl = process.env.ADMIN_WEBAPP_URL?.trim() || process.env.PUBLIC_SITE_URL?.trim();
-  const keyboard = webAppUrl ? adminWebAppKeyboard(webAppUrl.replace(/\/$/, "") + "/admin") : mainMenuKeyboard();
-  const intro = webAppUrl
-    ? "🖥 Панель модератора — сделки, метрики и настройки прямо в Telegram.\n\nИли жми кнопки под кандидатами:"
-    : "Кандидаты на модерацию:";
-  await sendTelegramBotMessage(chatId, intro, keyboard);
+  if (webAppUrl) {
+    const url = webAppUrl.replace(/\/$/, "") + "/admin";
+    try { await setTelegramMenuButton(chatId, url); } catch { /* non-critical */ }
+    await sendTelegramBotMessage(chatId, "🖥 Панель модератора — кнопка внизу чата и в меню ☰.", adminReplyKeyboard(url));
+  } else {
+    await sendTelegramBotMessage(chatId, "Кандидаты на модерацию:", mainMenuKeyboard());
+  }
   await sendAdminDeals(supabase, chatId);
 }
 
@@ -145,7 +147,21 @@ async function main() {
       const callback = update.callback_query; if (callback) { await answerTelegramCallback(callback.id); const chatId = callback.message?.chat.id; if (!chatId) continue; const cbUserId = callback.from?.id ?? chatId; if (callback.data === "menu:search") await sendTelegramBotMessage(chatId, "🔎 Просто напиши, что ищем — я продолжу разговор сама.", mainMenuKeyboard()); else if (callback.data === "menu:photo") await sendTelegramBotMessage(chatId, "📸 Пришли фотографию товара — попробую определить его и продолжу поиск.", mainMenuKeyboard()); else if (callback.data === "menu:watches") await sendWatchesList(supabase, chatId, cbUserId); else if (callback.data === "menu:support" || callback.data === "support:start") await sendTelegramBotMessage(chatId, "💬 Я здесь 🙂 Просто напиши мне сообщение обычным текстом.", mainMenuKeyboard()); else if (callback.data?.startsWith("unwatch:")) { await removePriceAlert(Number(cbUserId), callback.data.slice(8)); await sendWatchesList(supabase, chatId, cbUserId); } else if (callback.data?.startsWith("watch:")) { const productId = callback.data.slice(6); try { await addPriceAlert({ telegramUserId: Number(cbUserId), chatId, productId }); await sendTelegramBotMessage(chatId, "🔔 Буду следить за этим товаром и напишу, когда подешевеет. Чтобы задать желаемую цену, отправь: /watch <id> <цена>.", mainMenuKeyboard()); } catch { await sendTelegramBotMessage(chatId, "Не смогла оформить подписку на этот товар.", mainMenuKeyboard()); } } else if (isAdminUser(cbUserId) && (callback.data?.startsWith("admin:approve:") || callback.data?.startsWith("admin:reject:"))) { await handleAdminAction(supabase, chatId, callback.data, callback.message?.message_id); } continue; }
       const message = update.message; if (!message?.chat?.id) continue; const { error: updateError } = await supabase.from("telegram_bot_updates").insert({ update_id: update.update_id }); if (updateError?.code === "23505") continue; if (updateError) throw updateError;
       const text = normalizeSearchQuery(message.text ?? message.caption ?? ""); const userId = message.from?.id ?? message.chat.id;
-      if (text === "/start" || text.startsWith("/start ") || text === "/help") { await sendTelegramBotMessage(message.chat.id, startText(message.from?.first_name), mainMenuKeyboard()); continue; }
+      if (text === "/start" || text.startsWith("/start ") || text === "/help") {
+        if (isAdminUser(userId)) {
+          const webAppUrl = process.env.ADMIN_WEBAPP_URL?.trim() || process.env.PUBLIC_SITE_URL?.trim();
+          if (webAppUrl) {
+            const url = webAppUrl.replace(/\/$/, "") + "/admin";
+            try { await setTelegramMenuButton(message.chat.id, url); } catch (menuError) { console.error("Menu button setup failed", menuError); }
+            await sendTelegramBotMessage(message.chat.id, startText(message.from?.first_name) + "\n\n🖥 Кнопка панели — внизу чата.", adminReplyKeyboard(url));
+          } else {
+            await sendTelegramBotMessage(message.chat.id, startText(message.from?.first_name), mainMenuKeyboard());
+          }
+        } else {
+          await sendTelegramBotMessage(message.chat.id, startText(message.from?.first_name), mainMenuKeyboard());
+        }
+        continue;
+      }
       const watch = parseWatchCommand(text); if (watch) { const { data: product, error } = await supabase.from("products").select("id,title").eq("id", watch.productId).maybeSingle(); if (error) throw error; if (!product) await sendTelegramBotMessage(message.chat.id, "Не нашла такой товар."); else { await addPriceAlert({ telegramUserId: userId, chatId: message.chat.id, productId: product.id, targetPrice: watch.targetPrice }); await sendTelegramBotMessage(message.chat.id, `🔔 Буду следить за «${product.title}»${watch.targetPrice ? ` до ${Math.round(watch.targetPrice)} ₽` : " при снижении цены"}.`, mainMenuKeyboard()); } continue; }
       const unwatch = parseUnwatchCommand(text); if (unwatch) { await removePriceAlert(userId, unwatch); await sendTelegramBotMessage(message.chat.id, "🔕 Отслеживание цены отключено.", mainMenuKeyboard()); continue; }
       if (text === "/watches") { await sendWatchesList(supabase, message.chat.id, userId); continue; }

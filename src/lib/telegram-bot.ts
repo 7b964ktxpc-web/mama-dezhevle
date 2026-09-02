@@ -74,6 +74,17 @@ export function adminWebAppKeyboard(url: string) {
   return { inline_keyboard: [[{ text: "🖥 Открыть панель", web_app: { url } }]] };
 }
 
+// Persistent reply keyboard with a WebApp button below the input field.
+export function adminReplyKeyboard(url: string) {
+  return { keyboard: [[{ text: "🖥 Панель", web_app: { url } }]], resize_keyboard: true, is_persistent: false };
+}
+
+// Makes the chat's persistent menu button (bottom-left ☰) open the admin
+// WebApp for the given chat. Only call this for admin users.
+export async function setTelegramMenuButton(chatId: number | string, url: string, text = "Панель") {
+  return telegramCall("setChatMenuButton", { chat_id: chatId, menu_button: { type: "web_app", text, web_app: { url } } });
+}
+
 import { trackedUrlFor } from "./affiliate";
 
 export function resultKeyboard(item: { id?: string; url?: string; source?: string }) {
