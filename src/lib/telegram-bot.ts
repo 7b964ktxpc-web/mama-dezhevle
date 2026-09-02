@@ -50,7 +50,7 @@ export type TelegramUpdate = {
 type TelegramFile = { file_path: string };
 
 export async function getTelegramUpdates(offset?: number, timeout = 25) {
-  return telegramCall<TelegramUpdate[]>("getUpdates", { offset, timeout, allowed_updates: ["message", "callback_query"] });
+  return telegramCall<TelegramUpdate[]>("getUpdates", { offset, timeout, allowed_updates: ["message", "callback_query", "my_chat_member", "channel_post", "edited_channel_post"] });
 }
 
 export async function deleteTelegramWebhook() {
