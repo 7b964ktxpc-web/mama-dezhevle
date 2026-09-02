@@ -173,22 +173,20 @@ export function filterRelevant(offers: Offer[], query: string): { kept: Offer[];
       if (wantedGender === "boy" && FEMALE_ONLY_RE.test(offer.title)) return false;
       return true;
     });
-    if (byGender.length) {
-      dropped += kept.length - byGender.length;
-      kept = byGender;
-    }
+    // Gender filtering never falls back: showing the wrong gender is worse
+    // than showing nothing. (If everything is genuinely unisex it stays.)
+    dropped += kept.length - byGender.length;
+    kept = byGender;
   }
   return { kept, dropped };
 }
 
 // Verifier stage 3: gender mismatch. "Куртка мальчику" must not return
-// "куртка для девочки". We only drop offers when the query states one gender
-// explicitly and the title states the opposite one; unisex/neutral items stay.
-const GIRL_RE = /\bдевочк\w*\b/i;
-const BOY_RE = /\bмальчик\w*\b/i;
-const FEMALE_RE = /\bдевочк\w*\b|\bдевичь\w*\b/i;
-const MALE_RE = /\bмальчик\w*\b/i;
-const FEMALE_ONLY_RE = /\b(юбк\w*|плать\w*|сарафан\w*)\b/i;
+// "куртка для девочки". NB: JS \b word boundaries do not work with Cyrillic
+// (\w is ASCII-only), so these are plain substring tests.
+const GIRL_RE = /девочк/i;
+const BOY_RE = /мальчик/i;
+const FEMALE_ONLY_RE = /(юбк|плать|сарафан)/i;
 
 function genderOf(text: string): "boy" | "girl" | null {
   const girl = GIRL_RE.test(text);
