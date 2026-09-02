@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Golos_Text, Unbounded } from "next/font/google";
+import "./globals.css";
 
 const display = Unbounded({ subsets: ["latin", "cyrillic"], weight: ["400", "600", "700"], variable: "--font-unbounded" });
 const body = Golos_Text({ subsets: ["latin", "cyrillic"], weight: ["400", "500", "600", "700"], variable: "--font-golos" });
